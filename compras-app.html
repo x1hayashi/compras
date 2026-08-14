@@ -22,7 +22,8 @@
     display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; z-index:10;
   }
   header h1{font-size:18px; margin:0; font-weight:700;}
-  header .user{font-size:13px; color:var(--muted);}
+  header .user{font-size:13px; color:var(--muted); display:flex; align-items:center; gap:10px;}
+  header .user button{background:none; border:none; color:var(--accent); font-size:13px; cursor:pointer; padding:0;}
   #app{max-width:640px; margin:0 auto; padding:16px;}
   .card{
     background:var(--card); border:1px solid var(--border); border-radius:12px;
@@ -32,6 +33,7 @@
     width:100%; padding:11px 12px; border:1px solid var(--border); border-radius:8px;
     font-size:15px; font-family:inherit; background:#fff; color:var(--text);
   }
+  input[readonly]{background:var(--bg); color:var(--muted);}
   label{font-size:13px; color:var(--muted); font-weight:500; display:block; margin:10px 0 4px;}
   button{
     font-family:inherit; font-size:15px; font-weight:600; border:none; border-radius:8px;
@@ -42,13 +44,15 @@
   .btn-ghost{background:transparent; color:var(--accent); border:1px solid var(--accent);}
   .btn-danger{background:transparent; color:var(--cancelada); border:1px solid var(--cancelada);}
   .btn-sm{padding:7px 12px; font-size:13px;}
-  .tabs{display:flex; gap:8px; margin-bottom:14px;}
-  .tab{flex:1; text-align:center; padding:10px; border-radius:8px; background:var(--card); border:1px solid var(--border); cursor:pointer; font-weight:600; font-size:14px; color:var(--muted);}
+  .tabs{display:flex; gap:8px; margin-bottom:14px; overflow-x:auto;}
+  .tab{flex:1; text-align:center; padding:10px; border-radius:8px; background:var(--card); border:1px solid var(--border); cursor:pointer; font-weight:600; font-size:13px; color:var(--muted); white-space:nowrap;}
   .tab.active{background:var(--accent); color:#fff; border-color:var(--accent);}
   .badge{display:inline-block; padding:3px 10px; border-radius:20px; font-size:12px; font-weight:600; color:#fff;}
   .badge.pendente{background:var(--pendente);}
   .badge.lancada{background:var(--lancada);}
   .badge.cancelada{background:var(--cancelada);}
+  .badge.aprovado{background:var(--lancada);}
+  .badge.bloqueado{background:var(--cancelada);}
   .item-row{display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px dashed var(--border); font-size:14px;}
   .item-row:last-child{border-bottom:none;}
   .muted{color:var(--muted); font-size:13px;}
@@ -56,12 +60,13 @@
   .fab{position:fixed; bottom:20px; right:20px; width:56px; height:56px; border-radius:50%; background:var(--accent); color:#fff; font-size:28px; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 12px rgba(0,0,0,.2); cursor:pointer;}
   .autocomplete-box{position:relative;}
   .suggestions{position:absolute; z-index:20; background:#fff; border:1px solid var(--border); border-radius:8px; width:100%; max-height:200px; overflow-y:auto; box-shadow:0 4px 12px rgba(0,0,0,.1);}
-  .suggestion{padding:10px 12px; cursor:pointer; font-size:14px;}
+  .suggestion{padding:10px 12px; cursor:pointer; font-size:14px; display:flex; justify-content:space-between;}
   .suggestion:hover{background:var(--bg);}
+  .suggestion .unid{color:var(--muted); font-size:12px;}
   .item-added{display:flex; justify-content:space-between; align-items:center; background:var(--bg); padding:8px 10px; border-radius:8px; margin-bottom:6px; font-size:14px;}
   .item-added button{background:none; border:none; color:var(--cancelada); font-size:18px; padding:0; cursor:pointer;}
   .hidden{display:none !important;}
-  .toast{position:fixed; bottom:20px; left:50%; transform:translateX(-50%) translateY(100px); background:#1a1d23; color:#fff; padding:12px 20px; border-radius:8px; font-size:14px; transition:.3s; z-index:100;}
+  .toast{position:fixed; bottom:20px; left:50%; transform:translateX(-50%) translateY(100px); background:#1a1d23; color:#fff; padding:12px 20px; border-radius:8px; font-size:14px; transition:.3s; z-index:100; max-width:90%; text-align:center;}
   .toast.show{transform:translateX(-50%) translateY(0);}
   .toast.error{background:var(--cancelada);}
   .overlay{position:fixed; inset:0; background:rgba(0,0,0,.4); display:none; align-items:flex-end; z-index:50;}
@@ -70,6 +75,9 @@
   .sheet-header{display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;}
   .sheet-header h2{margin:0; font-size:18px;}
   .close-btn{background:none; border:none; font-size:24px; color:var(--muted); cursor:pointer;}
+  .admin-user{display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid var(--border);}
+  .admin-user:last-child{border-bottom:none;}
+  .admin-user-actions{display:flex; gap:6px; flex-wrap:wrap; margin-top:6px;}
 </style>
 </head>
 <body>
@@ -94,12 +102,14 @@
 
   <!-- LISTA -->
   <div id="listView" class="hidden">
-    <div class="tabs">
-      <div class="tab active" data-status="pendente" onclick="setTab('pendente')">Pendentes</div>
-      <div class="tab" data-status="lancada" onclick="setTab('lancada')">Lançadas</div>
-      <div class="tab" data-status="cancelada" onclick="setTab('cancelada')">Canceladas</div>
+    <div class="tabs" id="tabsMain">
+      <div class="tab active" data-tab="pendente" onclick="setTab('pendente')">Pendentes</div>
+      <div class="tab" data-tab="lancada" onclick="setTab('lancada')">Lançadas</div>
+      <div class="tab" data-tab="cancelada" onclick="setTab('cancelada')">Canceladas</div>
+      <div class="tab hidden" id="tabAdmin" data-tab="admin" onclick="setTab('admin')">Admin</div>
     </div>
     <div id="listItems"></div>
+    <div id="adminView" class="hidden"></div>
   </div>
 
 </div>
@@ -115,7 +125,7 @@
     </div>
 
     <label>Filial</label>
-    <select id="novaFilial"></select>
+    <select id="novaFilial" onchange="onFilialChange()"></select>
 
     <label>Setor</label>
     <select id="novaSetor"></select>
@@ -139,7 +149,7 @@
         </div>
         <div style="flex:1;">
           <label>Unidade</label>
-          <input id="itemUnidade" placeholder="ex: UN, KG, L">
+          <input id="itemUnidade" readonly>
         </div>
       </div>
       <label>Urgência</label>
@@ -158,11 +168,25 @@
   </div>
 </div>
 
+<!-- MODAL CONFIG RESPONSÁVEL (admin) -->
+<div class="overlay" id="overlayResp" onclick="closeOverlayBg(event,'overlayResp')">
+  <div class="sheet">
+    <div class="sheet-header">
+      <h2>Responsável por Compras</h2>
+      <button class="close-btn" onclick="closeOverlay('overlayResp')">✕</button>
+    </div>
+    <p class="muted">Esse usuário recebe as solicitações via WhatsApp quando alguém envia um pedido.</p>
+    <label>Usuário responsável</label>
+    <select id="respSelect"></select>
+    <button class="btn-primary" style="margin-top:16px;" onclick="salvarResponsavel()">Salvar</button>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
 // ── CONFIG ────────────────────────────────────────────────
-const API = "https://compras-proxy-0m10.onrender.com"; // <-- troque pela URL do Render após o deploy
+const API = "https://compras-proxy-0m10.onrender.com";
 
 let token = localStorage.getItem("compras_token") || "";
 let currentUser = null;
@@ -171,6 +195,7 @@ let solicitacoes = [];
 let produtoSelecionado = null;
 let itensNovos = [];
 let cadastrosCache = { filiais: [], setores: [] };
+let adminUsuarios = [];
 
 function showToast(msg, isError=false){
   const t = document.getElementById('toast');
@@ -188,13 +213,19 @@ async function api(path, opts={}){
   return data;
 }
 
+function logout(){
+  localStorage.removeItem('compras_token');
+  location.reload();
+}
+
 async function init(){
   if (!token){ document.getElementById('loginView').classList.remove('hidden'); return; }
   try{
     currentUser = await api('/me');
-    document.getElementById('userLabel').textContent = currentUser.nome;
+    document.getElementById('userLabel').innerHTML = currentUser.nome + ' <button onclick="logout()">Sair</button>';
     document.getElementById('listView').classList.remove('hidden');
     document.getElementById('fabAdd').classList.remove('hidden');
+    if (currentUser.admin) document.getElementById('tabAdmin').classList.remove('hidden');
     await carregarCadastros();
     await carregarSolicitacoes();
   }catch(e){
@@ -216,12 +247,20 @@ async function login(){
 async function carregarCadastros(){
   try{
     cadastrosCache.filiais = await api('/gsb/filiais');
-    cadastrosCache.setores = await api('/gsb/setores');
     const selF = document.getElementById('novaFilial');
-    selF.innerHTML = cadastrosCache.filiais.map(f=>`<option value="${f.idFilial}">${f.nome}</option>`).join('');
-    const selS = document.getElementById('novaSetor');
-    selS.innerHTML = cadastrosCache.setores.map(s=>`<option value="${s.idSetor}">${s.nomeSetor}</option>`).join('');
+    selF.innerHTML = cadastrosCache.filiais.map(f=>`<option value="${f.idFilial}">${f.nome} (${f.siglaFilial})</option>`).join('');
+    await onFilialChange();
   }catch(e){ /* cadastros são opcionais para exibição */ }
+}
+
+async function onFilialChange(){
+  const selF = document.getElementById('novaFilial');
+  const idFilial = selF.value;
+  try{
+    const setores = await api('/gsb/setores?idFilial=' + encodeURIComponent(idFilial));
+    const selS = document.getElementById('novaSetor');
+    selS.innerHTML = setores.map(s=>`<option value="${s.idSetor}">${s.nomeSetor}</option>`).join('');
+  }catch(e){}
 }
 
 async function carregarSolicitacoes(){
@@ -231,10 +270,20 @@ async function carregarSolicitacoes(){
   }catch(e){ showToast(e.message, true); }
 }
 
-function setTab(status){
-  currentTab = status;
-  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active', t.dataset.status===status));
-  render();
+function setTab(tab){
+  currentTab = tab;
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active', t.dataset.tab===tab));
+  if (tab === 'admin'){
+    document.getElementById('listItems').classList.add('hidden');
+    document.getElementById('fabAdd').classList.add('hidden');
+    document.getElementById('adminView').classList.remove('hidden');
+    carregarAdmin();
+  } else {
+    document.getElementById('listItems').classList.remove('hidden');
+    document.getElementById('fabAdd').classList.remove('hidden');
+    document.getElementById('adminView').classList.add('hidden');
+    render();
+  }
 }
 
 function render(){
@@ -316,16 +365,17 @@ function buscarProduto(){
     try{
       const resultados = await api('/gsb/produtos-busca?q=' + encodeURIComponent(q));
       if (!resultados.length){ box.classList.add('hidden'); return; }
-      box.innerHTML = resultados.map(p=>`<div class="suggestion" onclick='selecionarProduto(${JSON.stringify(p).replace(/'/g,"&#39;")})'>${p.nome}</div>`).join('');
+      box.innerHTML = resultados.map(p=>`<div class="suggestion" onclick='selecionarProduto(${JSON.stringify(p).replace(/'/g,"&#39;")})'><span>${p.nome}</span><span class="unid">${p.unidade||''}</span></div>`).join('');
       box.classList.remove('hidden');
     }catch(e){ box.classList.add('hidden'); }
-  }, 300);
+  }, 250);
 }
 function selecionarProduto(p){
   produtoSelecionado = p;
   document.getElementById('buscaProduto').value = p.nome;
   document.getElementById('sugestoes').classList.add('hidden');
   document.getElementById('produtoSelecionadoLabel').textContent = 'Selecionado: ' + p.nome;
+  document.getElementById('itemUnidade').value = p.unidade || '—';
   document.getElementById('produtoSelecionadoBox').classList.remove('hidden');
 }
 function adicionarItem(){
@@ -337,7 +387,7 @@ function adicionarItem(){
     idProduto: produtoSelecionado.idProduto,
     descricaoProduto: produtoSelecionado.nome,
     quantidade: qtd,
-    unidade: document.getElementById('itemUnidade').value.trim(),
+    unidade: produtoSelecionado.unidade || '',
     idUrgencia: urgSel.value,
     urgenciaNome: urgSel.options[urgSel.selectedIndex].text,
   });
@@ -345,7 +395,6 @@ function adicionarItem(){
   produtoSelecionado = null;
   document.getElementById('buscaProduto').value = '';
   document.getElementById('itemQtd').value = '';
-  document.getElementById('itemUnidade').value = '';
   document.getElementById('produtoSelecionadoBox').classList.add('hidden');
 }
 function renderItensNovos(){
@@ -361,12 +410,15 @@ async function enviarSolicitacao(){
   if (!itensNovos.length){ showToast('Adicione ao menos um item', true); return; }
   const filialSel = document.getElementById('novaFilial');
   const setorSel = document.getElementById('novaSetor');
+  const filialNome = filialSel.options[filialSel.selectedIndex]?.text || '';
+  const setorNome = setorSel.options[setorSel.selectedIndex]?.text || '';
+  const obs = document.getElementById('novaObs').value.trim();
   const body = {
     id_filial: filialSel.value,
-    filial_nome: filialSel.options[filialSel.selectedIndex]?.text,
+    filial_nome: filialNome,
     id_setor: setorSel.value,
-    setor_nome: setorSel.options[setorSel.selectedIndex]?.text,
-    obs: document.getElementById('novaObs').value.trim(),
+    setor_nome: setorNome,
+    obs,
     itens: itensNovos,
   };
   try{
@@ -374,6 +426,92 @@ async function enviarSolicitacao(){
     showToast('Solicitação enviada!');
     closeOverlay('overlayNova');
     await carregarSolicitacoes();
+    await enviarWhatsappResponsavel({ filialNome, setorNome, obs, itens: itensNovos });
+  }catch(e){ showToast(e.message, true); }
+}
+
+async function enviarWhatsappResponsavel({ filialNome, setorNome, obs, itens }){
+  try{
+    const resp = await api('/config/responsavel');
+    if (!resp || !resp.whatsapp){
+      showToast('Nenhum responsável configurado para receber no WhatsApp (peça ao admin para configurar)', true);
+      return;
+    }
+    const hoje = new Date().toLocaleDateString('pt-BR');
+    const itensTxt = itens.map(it => `• ${it.descricaoProduto} — ${it.quantidade}${it.unidade?(' '+it.unidade):''} (${it.urgenciaNome})`).join('\n');
+    const msg = `🛒 *NOVA SOLICITAÇÃO DE COMPRA*\n\n📅 *Data:* ${hoje}\n🏢 *Filial:* ${filialNome}\n🏗️ *Setor:* ${setorNome}\n👤 *Solicitante:* ${currentUser.nome}\n\n📦 *Itens:*\n${itensTxt}${obs ? `\n\n📝 *Observação:*\n${obs}` : ''}\n\n_Favor lançar no sistema GSB._`;
+    const whats = resp.whatsapp.replace(/\D/g,'');
+    window.location.href = `https://wa.me/${whats}?text=${encodeURIComponent(msg)}`;
+  }catch(e){ /* não bloqueia o fluxo se o whatsapp falhar */ }
+}
+
+// ── ADMIN ─────────────────────────────────────────────────
+async function carregarAdmin(){
+  const container = document.getElementById('adminView');
+  container.innerHTML = '<p class="muted">Carregando...</p>';
+  try{
+    const [usuarios, resp] = await Promise.all([
+      api('/admin/usuarios'),
+      api('/config/responsavel'),
+    ]);
+    adminUsuarios = usuarios;
+
+    const respHtml = `
+      <div class="card">
+        <div class="top-row">
+          <strong>Responsável por Compras</strong>
+          <button class="btn-ghost btn-sm" onclick="abrirConfigResponsavel()">Alterar</button>
+        </div>
+        <div class="muted">${resp ? (resp.nome + ' · ' + resp.whatsapp) : 'Nenhum responsável configurado'}</div>
+      </div>`;
+
+    const usuariosHtml = usuarios.map(u => `
+      <div class="admin-user">
+        <div style="flex:1;">
+          <div><strong>${u.nome}</strong> ${u.admin ? '👑' : ''}</div>
+          <div class="muted">${u.whatsapp} · ${u.filial || 'Sem filial'} · <span class="badge ${u.status==='aprovado'?'aprovado':u.status==='bloqueado'?'bloqueado':'pendente'}">${u.status}</span></div>
+          <div class="admin-user-actions">
+            ${u.status!=='aprovado' ? `<button class="btn-ghost btn-sm" onclick="adminAcao(${u.id},{status:'aprovado'})">✓ Aprovar</button>` : ''}
+            ${u.status!=='bloqueado' ? `<button class="btn-danger btn-sm" onclick="adminAcao(${u.id},{status:'bloqueado'})">Bloquear</button>` : ''}
+            ${!u.admin ? `<button class="btn-ghost btn-sm" onclick="adminAcao(${u.id},{admin:true})">👑 Tornar admin</button>` : ''}
+            ${!u.admin ? `<button class="btn-danger btn-sm" onclick="adminExcluir(${u.id},'${u.nome.replace(/'/g,"\\'")}')">🗑 Excluir</button>` : ''}
+          </div>
+        </div>
+      </div>`).join('');
+
+    container.innerHTML = respHtml + `<div class="card">${usuariosHtml}</div>`;
+  }catch(e){ container.innerHTML = `<p class="muted">Erro ao carregar: ${e.message}</p>`; }
+}
+
+async function adminAcao(id, body){
+  try{
+    await api(`/admin/usuarios/${id}`, { method:'PUT', body: JSON.stringify(body) });
+    showToast('Atualizado!');
+    carregarAdmin();
+  }catch(e){ showToast(e.message, true); }
+}
+
+async function adminExcluir(id, nome){
+  if (!confirm(`Excluir o usuário "${nome}"? Esta ação afeta também o acesso ao app da oficina.`)) return;
+  try{
+    await api(`/admin/usuarios/${id}`, { method:'DELETE' });
+    showToast('Usuário excluído');
+    carregarAdmin();
+  }catch(e){ showToast(e.message, true); }
+}
+
+function abrirConfigResponsavel(){
+  const sel = document.getElementById('respSelect');
+  sel.innerHTML = adminUsuarios.filter(u=>u.status==='aprovado').map(u=>`<option value="${u.id}">${u.nome} (${u.whatsapp})</option>`).join('');
+  document.getElementById('overlayResp').classList.add('open');
+}
+async function salvarResponsavel(){
+  const id = document.getElementById('respSelect').value;
+  try{
+    await api('/config/responsavel', { method:'PUT', body: JSON.stringify({ user_id: id }) });
+    showToast('Responsável atualizado!');
+    closeOverlay('overlayResp');
+    carregarAdmin();
   }catch(e){ showToast(e.message, true); }
 }
 
