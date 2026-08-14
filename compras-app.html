@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Compras — Hayashi</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#f5f6f8; --card:#ffffff; --text:#1a1d23; --muted:#6b7280;
+    --border:#e5e7eb; --accent:#2563eb; --accent-dark:#1d4ed8;
+    --pendente:#f59e0b; --lancada:#16a34a; --cancelada:#dc2626;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; font-family:'IBM Plex Sans',sans-serif; background:var(--bg); color:var(--text);
+    font-size:16px; -webkit-font-smoothing:antialiased;
+  }
+  header{
+    background:var(--card); border-bottom:1px solid var(--border); padding:14px 16px;
+    display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; z-index:10;
+  }
+  header h1{font-size:18px; margin:0; font-weight:700;}
+  header .user{font-size:13px; color:var(--muted);}
+  #app{max-width:640px; margin:0 auto; padding:16px;}
+  .card{
+    background:var(--card); border:1px solid var(--border); border-radius:12px;
+    padding:16px; margin-bottom:12px; box-shadow:0 1px 2px rgba(0,0,0,.03);
+  }
+  input, select, textarea{
+    width:100%; padding:11px 12px; border:1px solid var(--border); border-radius:8px;
+    font-size:15px; font-family:inherit; background:#fff; color:var(--text);
+  }
+  label{font-size:13px; color:var(--muted); font-weight:500; display:block; margin:10px 0 4px;}
+  button{
+    font-family:inherit; font-size:15px; font-weight:600; border:none; border-radius:8px;
+    padding:12px 16px; cursor:pointer;
+  }
+  .btn-primary{background:var(--accent); color:#fff; width:100%;}
+  .btn-primary:hover{background:var(--accent-dark);}
+  .btn-ghost{background:transparent; color:var(--accent); border:1px solid var(--accent);}
+  .btn-danger{background:transparent; color:var(--cancelada); border:1px solid var(--cancelada);}
+  .btn-sm{padding:7px 12px; font-size:13px;}
+  .tabs{display:flex; gap:8px; margin-bottom:14px;}
+  .tab{flex:1; text-align:center; padding:10px; border-radius:8px; background:var(--card); border:1px solid var(--border); cursor:pointer; font-weight:600; font-size:14px; color:var(--muted);}
+  .tab.active{background:var(--accent); color:#fff; border-color:var(--accent);}
+  .badge{display:inline-block; padding:3px 10px; border-radius:20px; font-size:12px; font-weight:600; color:#fff;}
+  .badge.pendente{background:var(--pendente);}
+  .badge.lancada{background:var(--lancada);}
+  .badge.cancelada{background:var(--cancelada);}
+  .item-row{display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px dashed var(--border); font-size:14px;}
+  .item-row:last-child{border-bottom:none;}
+  .muted{color:var(--muted); font-size:13px;}
+  .top-row{display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px;}
+  .fab{position:fixed; bottom:20px; right:20px; width:56px; height:56px; border-radius:50%; background:var(--accent); color:#fff; font-size:28px; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 12px rgba(0,0,0,.2); cursor:pointer;}
+  .autocomplete-box{position:relative;}
+  .suggestions{position:absolute; z-index:20; background:#fff; border:1px solid var(--border); border-radius:8px; width:100%; max-height:200px; overflow-y:auto; box-shadow:0 4px 12px rgba(0,0,0,.1);}
+  .suggestion{padding:10px 12px; cursor:pointer; font-size:14px;}
+  .suggestion:hover{background:var(--bg);}
+  .item-added{display:flex; justify-content:space-between; align-items:center; background:var(--bg); padding:8px 10px; border-radius:8px; margin-bottom:6px; font-size:14px;}
+  .item-added button{background:none; border:none; color:var(--cancelada); font-size:18px; padding:0; cursor:pointer;}
+  .hidden{display:none !important;}
+  .toast{position:fixed; bottom:20px; left:50%; transform:translateX(-50%) translateY(100px); background:#1a1d23; color:#fff; padding:12px 20px; border-radius:8px; font-size:14px; transition:.3s; z-index:100;}
+  .toast.show{transform:translateX(-50%) translateY(0);}
+  .toast.error{background:var(--cancelada);}
+  .overlay{position:fixed; inset:0; background:rgba(0,0,0,.4); display:none; align-items:flex-end; z-index:50;}
+  .overlay.open{display:flex;}
+  .sheet{background:#fff; width:100%; max-height:90vh; overflow-y:auto; border-radius:16px 16px 0 0; padding:20px;}
+  .sheet-header{display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;}
+  .sheet-header h2{margin:0; font-size:18px;}
+  .close-btn{background:none; border:none; font-size:24px; color:var(--muted); cursor:pointer;}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🛒 Compras</h1>
+  <div class="user" id="userLabel"></div>
+</header>
+
+<div id="app">
+
+  <!-- LOGIN -->
+  <div id="loginView" class="card hidden">
+    <h2 style="margin-top:0;">Entrar</h2>
+    <label>WhatsApp</label>
+    <input id="loginWhats" placeholder="55649XXXXXXXX" inputmode="tel">
+    <label>Senha</label>
+    <input id="loginSenha" type="password">
+    <button class="btn-primary" style="margin-top:16px;" onclick="login()">Entrar</button>
+    <p class="muted" style="margin-top:10px;">Use o mesmo usuário e senha do app da oficina.</p>
+  </div>
+
+  <!-- LISTA -->
+  <div id="listView" class="hidden">
+    <div class="tabs">
+      <div class="tab active" data-status="pendente" onclick="setTab('pendente')">Pendentes</div>
+      <div class="tab" data-status="lancada" onclick="setTab('lancada')">Lançadas</div>
+      <div class="tab" data-status="cancelada" onclick="setTab('cancelada')">Canceladas</div>
+    </div>
+    <div id="listItems"></div>
+  </div>
+
+</div>
+
+<div class="fab hidden" id="fabAdd" onclick="openNovaSolicitacao()">+</div>
+
+<!-- MODAL NOVA SOLICITAÇÃO -->
+<div class="overlay" id="overlayNova" onclick="closeOverlayBg(event,'overlayNova')">
+  <div class="sheet">
+    <div class="sheet-header">
+      <h2>Nova solicitação</h2>
+      <button class="close-btn" onclick="closeOverlay('overlayNova')">✕</button>
+    </div>
+
+    <label>Filial</label>
+    <select id="novaFilial"></select>
+
+    <label>Setor</label>
+    <select id="novaSetor"></select>
+
+    <label>Observação (opcional)</label>
+    <textarea id="novaObs" rows="2" placeholder="Ex: compra urgente para colheita"></textarea>
+
+    <hr style="border:none; border-top:1px solid var(--border); margin:16px 0;">
+
+    <label>Adicionar item</label>
+    <div class="autocomplete-box">
+      <input id="buscaProduto" placeholder="Digite o nome do produto..." oninput="buscarProduto()" autocomplete="off">
+      <div id="sugestoes" class="suggestions hidden"></div>
+    </div>
+    <div id="produtoSelecionadoBox" class="hidden" style="margin-top:10px;">
+      <div class="muted" id="produtoSelecionadoLabel"></div>
+      <div style="display:flex; gap:8px; margin-top:8px;">
+        <div style="flex:1;">
+          <label>Quantidade</label>
+          <input id="itemQtd" type="number" min="0" step="0.01">
+        </div>
+        <div style="flex:1;">
+          <label>Unidade</label>
+          <input id="itemUnidade" placeholder="ex: UN, KG, L">
+        </div>
+      </div>
+      <label>Urgência</label>
+      <select id="itemUrgencia">
+        <option value="1">Baixa</option>
+        <option value="2" selected>Normal</option>
+        <option value="3">Alta</option>
+        <option value="4">Urgente</option>
+      </select>
+      <button class="btn-ghost btn-sm" style="margin-top:10px; width:100%;" onclick="adicionarItem()">Adicionar item à lista</button>
+    </div>
+
+    <div id="itensLista" style="margin-top:16px;"></div>
+
+    <button class="btn-primary" style="margin-top:16px;" onclick="enviarSolicitacao()">Enviar solicitação</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── CONFIG ────────────────────────────────────────────────
+const API = "https://compras-proxy-0m10.onrender.com"; // <-- troque pela URL do Render após o deploy
+
+let token = localStorage.getItem("compras_token") || "";
+let currentUser = null;
+let currentTab = "pendente";
+let solicitacoes = [];
+let produtoSelecionado = null;
+let itensNovos = [];
+let cadastrosCache = { filiais: [], setores: [] };
+
+function showToast(msg, isError=false){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = 'toast' + (isError ? ' error' : '');
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 2500);
+}
+
+async function api(path, opts={}){
+  opts.headers = Object.assign({ "Content-Type":"application/json" }, opts.headers || {});
+  if (token) opts.headers["Authorization"] = "Bearer " + token;
+  const res = await fetch(API + path, opts);
+  const data = await res.json().catch(()=>({}));
+  if (!res.ok) throw new Error(data.error || "Erro na requisição");
+  return data;
+}
+
+async function init(){
+  if (!token){ document.getElementById('loginView').classList.remove('hidden'); return; }
+  try{
+    currentUser = await api('/me');
+    document.getElementById('userLabel').textContent = currentUser.nome;
+    document.getElementById('listView').classList.remove('hidden');
+    document.getElementById('fabAdd').classList.remove('hidden');
+    await carregarCadastros();
+    await carregarSolicitacoes();
+  }catch(e){
+    localStorage.removeItem('compras_token'); token = '';
+    document.getElementById('loginView').classList.remove('hidden');
+  }
+}
+
+async function login(){
+  const whatsapp = document.getElementById('loginWhats').value.trim();
+  const senha = document.getElementById('loginSenha').value;
+  try{
+    const data = await api('/login', { method:'POST', body: JSON.stringify({ whatsapp, senha }) });
+    token = data.token; localStorage.setItem('compras_token', token);
+    location.reload();
+  }catch(e){ showToast(e.message, true); }
+}
+
+async function carregarCadastros(){
+  try{
+    cadastrosCache.filiais = await api('/gsb/filiais');
+    cadastrosCache.setores = await api('/gsb/setores');
+    const selF = document.getElementById('novaFilial');
+    selF.innerHTML = cadastrosCache.filiais.map(f=>`<option value="${f.idFilial}">${f.nome}</option>`).join('');
+    const selS = document.getElementById('novaSetor');
+    selS.innerHTML = cadastrosCache.setores.map(s=>`<option value="${s.idSetor}">${s.nomeSetor}</option>`).join('');
+  }catch(e){ /* cadastros são opcionais para exibição */ }
+}
+
+async function carregarSolicitacoes(){
+  try{
+    solicitacoes = await api('/solicitacoes');
+    render();
+  }catch(e){ showToast(e.message, true); }
+}
+
+function setTab(status){
+  currentTab = status;
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active', t.dataset.status===status));
+  render();
+}
+
+function render(){
+  const statusMap = { pendente:'pendente', lancada:'lançada', cancelada:'cancelada' };
+  const filtradas = solicitacoes.filter(s=>s.status === statusMap[currentTab]);
+  const container = document.getElementById('listItems');
+  if (!filtradas.length){
+    container.innerHTML = `<p class="muted" style="text-align:center; margin-top:40px;">Nenhuma solicitação aqui.</p>`;
+    return;
+  }
+  container.innerHTML = filtradas.map(s=>{
+    const dt = new Date(s.data_solicitacao).toLocaleDateString('pt-BR');
+    const badgeClass = s.status === 'lançada' ? 'lancada' : (s.status === 'cancelada' ? 'cancelada' : 'pendente');
+    const itensHtml = (s.itens||[]).map(it=>`
+      <div class="item-row">
+        <span>${it.descricao_produto} ${it.unidade?('('+it.unidade+')'):''}</span>
+        <span>${it.quantidade} · ${it.urgencia_nome}</span>
+      </div>`).join('');
+    const acoes = currentUser.admin && s.status === 'pendente'
+      ? `<div style="display:flex; gap:8px; margin-top:10px;">
+           <button class="btn-ghost btn-sm" onclick="marcarLancada(${s.id})">Marcar como lançada</button>
+           <button class="btn-danger btn-sm" onclick="cancelar(${s.id})">Cancelar</button>
+         </div>`
+      : (s.status === 'pendente' ? `<div style="margin-top:10px;"><button class="btn-danger btn-sm" onclick="cancelar(${s.id})">Cancelar</button></div>` : '');
+    return `
+      <div class="card">
+        <div class="top-row">
+          <div>
+            <strong>${s.filial_nome || ('Filial '+s.id_filial)}</strong>
+            <div class="muted">${s.setor_nome || ''} · ${dt}</div>
+          </div>
+          <span class="badge ${badgeClass}">${s.status}</span>
+        </div>
+        <div class="muted">Solicitante: ${s.solicitante_nome}</div>
+        ${s.obs ? `<div style="margin-top:6px; font-size:14px;">${s.obs}</div>` : ''}
+        <div style="margin-top:10px;">${itensHtml}</div>
+        ${acoes}
+      </div>`;
+  }).join('');
+}
+
+async function marcarLancada(id){
+  const numero = prompt('Número da solicitação no GSB (opcional):');
+  try{
+    await api(`/solicitacoes/${id}`, { method:'PUT', body: JSON.stringify({ status:'lançada', id_comprador: currentUser.id, numero_solicitacao_gsb: numero || null }) });
+    showToast('Marcada como lançada');
+    await carregarSolicitacoes();
+  }catch(e){ showToast(e.message, true); }
+}
+
+async function cancelar(id){
+  if (!confirm('Cancelar esta solicitação?')) return;
+  try{
+    await api(`/solicitacoes/${id}`, { method:'PUT', body: JSON.stringify({ status:'cancelada' }) });
+    showToast('Cancelada');
+    await carregarSolicitacoes();
+  }catch(e){ showToast(e.message, true); }
+}
+
+// ── NOVA SOLICITAÇÃO ──────────────────────────────────────
+function openNovaSolicitacao(){
+  itensNovos = []; produtoSelecionado = null;
+  document.getElementById('itensLista').innerHTML = '';
+  document.getElementById('novaObs').value = '';
+  document.getElementById('buscaProduto').value = '';
+  document.getElementById('produtoSelecionadoBox').classList.add('hidden');
+  document.getElementById('overlayNova').classList.add('open');
+}
+function closeOverlay(id){ document.getElementById(id).classList.remove('open'); }
+function closeOverlayBg(e, id){ if (e.target === document.getElementById(id)) closeOverlay(id); }
+
+let buscaTimeout;
+function buscarProduto(){
+  clearTimeout(buscaTimeout);
+  const q = document.getElementById('buscaProduto').value.trim();
+  const box = document.getElementById('sugestoes');
+  if (q.length < 2){ box.classList.add('hidden'); return; }
+  buscaTimeout = setTimeout(async ()=>{
+    try{
+      const resultados = await api('/gsb/produtos-busca?q=' + encodeURIComponent(q));
+      if (!resultados.length){ box.classList.add('hidden'); return; }
+      box.innerHTML = resultados.map(p=>`<div class="suggestion" onclick='selecionarProduto(${JSON.stringify(p).replace(/'/g,"&#39;")})'>${p.nome}</div>`).join('');
+      box.classList.remove('hidden');
+    }catch(e){ box.classList.add('hidden'); }
+  }, 300);
+}
+function selecionarProduto(p){
+  produtoSelecionado = p;
+  document.getElementById('buscaProduto').value = p.nome;
+  document.getElementById('sugestoes').classList.add('hidden');
+  document.getElementById('produtoSelecionadoLabel').textContent = 'Selecionado: ' + p.nome;
+  document.getElementById('produtoSelecionadoBox').classList.remove('hidden');
+}
+function adicionarItem(){
+  const qtd = parseFloat(document.getElementById('itemQtd').value);
+  if (!produtoSelecionado){ showToast('Busque e selecione um produto', true); return; }
+  if (!qtd || qtd <= 0){ showToast('Informe a quantidade', true); return; }
+  const urgSel = document.getElementById('itemUrgencia');
+  itensNovos.push({
+    idProduto: produtoSelecionado.idProduto,
+    descricaoProduto: produtoSelecionado.nome,
+    quantidade: qtd,
+    unidade: document.getElementById('itemUnidade').value.trim(),
+    idUrgencia: urgSel.value,
+    urgenciaNome: urgSel.options[urgSel.selectedIndex].text,
+  });
+  renderItensNovos();
+  produtoSelecionado = null;
+  document.getElementById('buscaProduto').value = '';
+  document.getElementById('itemQtd').value = '';
+  document.getElementById('itemUnidade').value = '';
+  document.getElementById('produtoSelecionadoBox').classList.add('hidden');
+}
+function renderItensNovos(){
+  document.getElementById('itensLista').innerHTML = itensNovos.map((it,i)=>`
+    <div class="item-added">
+      <span>${it.descricaoProduto} — ${it.quantidade}${it.unidade?(' '+it.unidade):''} (${it.urgenciaNome})</span>
+      <button onclick="removerItem(${i})">✕</button>
+    </div>`).join('');
+}
+function removerItem(i){ itensNovos.splice(i,1); renderItensNovos(); }
+
+async function enviarSolicitacao(){
+  if (!itensNovos.length){ showToast('Adicione ao menos um item', true); return; }
+  const filialSel = document.getElementById('novaFilial');
+  const setorSel = document.getElementById('novaSetor');
+  const body = {
+    id_filial: filialSel.value,
+    filial_nome: filialSel.options[filialSel.selectedIndex]?.text,
+    id_setor: setorSel.value,
+    setor_nome: setorSel.options[setorSel.selectedIndex]?.text,
+    obs: document.getElementById('novaObs').value.trim(),
+    itens: itensNovos,
+  };
+  try{
+    await api('/solicitacoes', { method:'POST', body: JSON.stringify(body) });
+    showToast('Solicitação enviada!');
+    closeOverlay('overlayNova');
+    await carregarSolicitacoes();
+  }catch(e){ showToast(e.message, true); }
+}
+
+init();
+</script>
+</body>
+</html>
