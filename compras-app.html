@@ -102,6 +102,10 @@
 
   <!-- LISTA -->
   <div id="listView" class="hidden">
+    <div class="tabs" id="tabsFilial">
+      <div class="tab active" data-filial="HGO" onclick="setFilialTab('HGO')">Goiás (HGO)</div>
+      <div class="tab" data-filial="HBA" onclick="setFilialTab('HBA')">Bahia (HBA)</div>
+    </div>
     <div class="tabs" id="tabsMain">
       <div class="tab active" data-tab="pendente" onclick="setTab('pendente')">Pendentes</div>
       <div class="tab" data-tab="lancada" onclick="setTab('lancada')">Lançadas</div>
@@ -172,10 +176,10 @@
 <div class="overlay" id="overlayResp" onclick="closeOverlayBg(event,'overlayResp')">
   <div class="sheet">
     <div class="sheet-header">
-      <h2>Responsável por Compras</h2>
+      <h2 id="respModalTitle">Responsável por Compras</h2>
       <button class="close-btn" onclick="closeOverlay('overlayResp')">✕</button>
     </div>
-    <p class="muted">Esse usuário recebe as solicitações via WhatsApp quando alguém envia um pedido.</p>
+    <p class="muted">Esse usuário recebe as solicitações dessa unidade via WhatsApp.</p>
     <label>Usuário responsável</label>
     <select id="respSelect"></select>
     <button class="btn-primary" style="margin-top:16px;" onclick="salvarResponsavel()">Salvar</button>
@@ -191,6 +195,7 @@ const API = "https://compras-proxy-0m10.onrender.com";
 let token = localStorage.getItem("compras_token") || "";
 let currentUser = null;
 let currentTab = "pendente";
+let currentFilialSigla = localStorage.getItem("compras_filial") || "HGO";
 let solicitacoes = [];
 let produtoSelecionado = null;
 let itensNovos = [];
@@ -226,6 +231,7 @@ async function init(){
     document.getElementById('listView').classList.remove('hidden');
     document.getElementById('fabAdd').classList.remove('hidden');
     if (currentUser.admin) document.getElementById('tabAdmin').classList.remove('hidden');
+    document.querySelectorAll('#tabsFilial .tab').forEach(t=>t.classList.toggle('active', t.dataset.filial===currentFilialSigla));
     await carregarCadastros();
     await carregarSolicitacoes();
   }catch(e){
@@ -248,7 +254,7 @@ async function carregarCadastros(){
   try{
     cadastrosCache.filiais = await api('/gsb/filiais');
     const selF = document.getElementById('novaFilial');
-    selF.innerHTML = cadastrosCache.filiais.map(f=>`<option value="${f.idFilial}">${f.nome} (${f.siglaFilial})</option>`).join('');
+    selF.innerHTML = cadastrosCache.filiais.map(f=>`<option value="${f.idFilial}" data-sigla="${f.siglaFilial}">${f.nome} (${f.siglaFilial})</option>`).join('');
     await onFilialChange();
   }catch(e){ /* cadastros são opcionais para exibição */ }
 }
@@ -270,15 +276,24 @@ async function carregarSolicitacoes(){
   }catch(e){ showToast(e.message, true); }
 }
 
+function setFilialTab(sigla){
+  currentFilialSigla = sigla;
+  localStorage.setItem('compras_filial', sigla);
+  document.querySelectorAll('#tabsFilial .tab').forEach(t=>t.classList.toggle('active', t.dataset.filial===sigla));
+  if (currentTab !== 'admin') render();
+}
+
 function setTab(tab){
   currentTab = tab;
-  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active', t.dataset.tab===tab));
+  document.querySelectorAll('#tabsMain .tab').forEach(t=>t.classList.toggle('active', t.dataset.tab===tab));
   if (tab === 'admin'){
+    document.getElementById('tabsFilial').classList.add('hidden');
     document.getElementById('listItems').classList.add('hidden');
     document.getElementById('fabAdd').classList.add('hidden');
     document.getElementById('adminView').classList.remove('hidden');
     carregarAdmin();
   } else {
+    document.getElementById('tabsFilial').classList.remove('hidden');
     document.getElementById('listItems').classList.remove('hidden');
     document.getElementById('fabAdd').classList.remove('hidden');
     document.getElementById('adminView').classList.add('hidden');
@@ -288,7 +303,13 @@ function setTab(tab){
 
 function render(){
   const statusMap = { pendente:'pendente', lancada:'lançada', cancelada:'cancelada' };
-  const filtradas = solicitacoes.filter(s=>s.status === statusMap[currentTab]);
+  const filtradas = solicitacoes.filter(s=>{
+    const statusOk = s.status === statusMap[currentTab];
+    const filialOk = s.filial_sigla
+      ? s.filial_sigla === currentFilialSigla
+      : (s.filial_nome || '').includes(currentFilialSigla); // fallback p/ registros antigos sem filial_sigla
+    return statusOk && filialOk;
+  });
   const container = document.getElementById('listItems');
   if (!filtradas.length){
     container.innerHTML = `<p class="muted" style="text-align:center; margin-top:40px;">Nenhuma solicitação aqui.</p>`;
@@ -350,6 +371,9 @@ function openNovaSolicitacao(){
   document.getElementById('novaObs').value = '';
   document.getElementById('buscaProduto').value = '';
   document.getElementById('produtoSelecionadoBox').classList.add('hidden');
+  const selF = document.getElementById('novaFilial');
+  const opt = Array.from(selF.options).find(o => o.dataset.sigla === currentFilialSigla);
+  if (opt) { selF.value = opt.value; onFilialChange(); }
   document.getElementById('overlayNova').classList.add('open');
 }
 function closeOverlay(id){ document.getElementById(id).classList.remove('open'); }
@@ -411,11 +435,13 @@ async function enviarSolicitacao(){
   const filialSel = document.getElementById('novaFilial');
   const setorSel = document.getElementById('novaSetor');
   const filialNome = filialSel.options[filialSel.selectedIndex]?.text || '';
+  const filialSigla = filialSel.options[filialSel.selectedIndex]?.dataset.sigla || '';
   const setorNome = setorSel.options[setorSel.selectedIndex]?.text || '';
   const obs = document.getElementById('novaObs').value.trim();
   const body = {
     id_filial: filialSel.value,
     filial_nome: filialNome,
+    filial_sigla: filialSigla,
     id_setor: setorSel.value,
     setor_nome: setorNome,
     obs,
@@ -426,15 +452,15 @@ async function enviarSolicitacao(){
     showToast('Solicitação enviada!');
     closeOverlay('overlayNova');
     await carregarSolicitacoes();
-    await enviarWhatsappResponsavel({ filialNome, setorNome, obs, itens: itensNovos });
+    await enviarWhatsappResponsavel({ filialNome, filialSigla, setorNome, obs, itens: itensNovos });
   }catch(e){ showToast(e.message, true); }
 }
 
-async function enviarWhatsappResponsavel({ filialNome, setorNome, obs, itens }){
+async function enviarWhatsappResponsavel({ filialNome, filialSigla, setorNome, obs, itens }){
   try{
-    const resp = await api('/config/responsavel');
+    const resp = await api('/config/responsavel?filial=' + encodeURIComponent(filialSigla));
     if (!resp || !resp.whatsapp){
-      showToast('Nenhum responsável configurado para receber no WhatsApp (peça ao admin para configurar)', true);
+      showToast('Nenhum responsável configurado para ' + filialSigla + ' (peça ao admin para configurar)', true);
       return;
     }
     const hoje = new Date().toLocaleDateString('pt-BR');
@@ -450,19 +476,27 @@ async function carregarAdmin(){
   const container = document.getElementById('adminView');
   container.innerHTML = '<p class="muted">Carregando...</p>';
   try{
-    const [usuarios, resp] = await Promise.all([
+    const [usuarios, respHGO, respHBA] = await Promise.all([
       api('/admin/usuarios'),
-      api('/config/responsavel'),
+      api('/config/responsavel?filial=HGO'),
+      api('/config/responsavel?filial=HBA'),
     ]);
     adminUsuarios = usuarios;
 
     const respHtml = `
       <div class="card">
         <div class="top-row">
-          <strong>Responsável por Compras</strong>
-          <button class="btn-ghost btn-sm" onclick="abrirConfigResponsavel()">Alterar</button>
+          <strong>Responsável — Goiás (HGO)</strong>
+          <button class="btn-ghost btn-sm" onclick="abrirConfigResponsavel('HGO')">Alterar</button>
         </div>
-        <div class="muted">${resp ? (resp.nome + ' · ' + resp.whatsapp) : 'Nenhum responsável configurado'}</div>
+        <div class="muted">${respHGO ? (respHGO.nome + ' · ' + respHGO.whatsapp) : 'Nenhum responsável configurado'}</div>
+      </div>
+      <div class="card">
+        <div class="top-row">
+          <strong>Responsável — Bahia (HBA)</strong>
+          <button class="btn-ghost btn-sm" onclick="abrirConfigResponsavel('HBA')">Alterar</button>
+        </div>
+        <div class="muted">${respHBA ? (respHBA.nome + ' · ' + respHBA.whatsapp) : 'Nenhum responsável configurado'}</div>
       </div>`;
 
     const usuariosHtml = usuarios.map(u => `
@@ -500,7 +534,10 @@ async function adminExcluir(id, nome){
   }catch(e){ showToast(e.message, true); }
 }
 
-function abrirConfigResponsavel(){
+let respModalFilial = null;
+function abrirConfigResponsavel(filial){
+  respModalFilial = filial;
+  document.getElementById('respModalTitle').textContent = 'Responsável — ' + (filial === 'HGO' ? 'Goiás (HGO)' : 'Bahia (HBA)');
   const sel = document.getElementById('respSelect');
   sel.innerHTML = adminUsuarios.filter(u=>u.status==='aprovado').map(u=>`<option value="${u.id}">${u.nome} (${u.whatsapp})</option>`).join('');
   document.getElementById('overlayResp').classList.add('open');
@@ -508,7 +545,7 @@ function abrirConfigResponsavel(){
 async function salvarResponsavel(){
   const id = document.getElementById('respSelect').value;
   try{
-    await api('/config/responsavel', { method:'PUT', body: JSON.stringify({ user_id: id }) });
+    await api('/config/responsavel', { method:'PUT', body: JSON.stringify({ filial: respModalFilial, user_id: id }) });
     showToast('Responsável atualizado!');
     closeOverlay('overlayResp');
     carregarAdmin();
