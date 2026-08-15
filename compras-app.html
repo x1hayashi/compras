@@ -188,6 +188,20 @@
   </div>
 </div>
 
+<!-- MODAL DETALHE HISTÓRICO -->
+<div class="overlay" id="overlayHistDetalhe" onclick="closeOverlayBg(event,'overlayHistDetalhe')">
+  <div class="sheet">
+    <div class="sheet-header">
+      <div>
+        <h2 id="histDetalheTitulo" style="margin:0;"></h2>
+        <div class="muted" id="histDetalheSub"></div>
+      </div>
+      <button class="close-btn" onclick="closeOverlay('overlayHistDetalhe')">✕</button>
+    </div>
+    <div id="histDetalheTabela"></div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -203,6 +217,7 @@ let produtoSelecionado = null;
 let itensNovos = [];
 let cadastrosCache = { filiais: [], setores: [] };
 let adminUsuarios = [];
+let historicoDados = [];
 
 function showToast(msg, isError=false){
   const t = document.getElementById('toast');
@@ -290,30 +305,54 @@ async function carregarHistorico(){
   const container = document.getElementById('historicoView');
   container.innerHTML = '<p class="muted" style="text-align:center; margin-top:20px;">Carregando os últimos 90 dias...</p>';
   try{
-    const dados = await api('/gsb/historico-solicitacoes');
-    const filtrados = dados.filter(s => !s.filialSigla || s.filialSigla === currentFilialSigla);
+    historicoDados = await api('/gsb/historico-solicitacoes');
+    const filtrados = historicoDados.filter(s => !s.filialSigla || s.filialSigla === currentFilialSigla);
     if (!filtrados.length){
       container.innerHTML = '<p class="muted" style="text-align:center; margin-top:40px;">Nenhuma solicitação aprovada ou aguardando aprovação nos últimos 90 dias.</p>';
       return;
     }
     container.innerHTML = filtrados.map(s=>{
       const dt = new Date(s.dataSolicitacao).toLocaleDateString('pt-BR');
-      const itensHtml = s.itens.map(it=>{
-        const cls = it.status.toLowerCase().startsWith('aprovad') ? 'lancada' : 'pendente';
-        return `<div class="item-row"><span>${it.produto}</span><span>${it.quantidade} <span class="badge ${cls}" style="margin-left:6px;">${it.status}</span></span></div>`;
-      }).join('');
       return `
-        <div class="card">
+        <div class="card" style="cursor:pointer;" onclick="abrirDetalheHistorico('${s.idSolicitacaoCompra}')">
           <div class="top-row">
             <div>
               <strong>Solicitação nº ${s.numeroSolicitacao || s.idSolicitacaoCompra}</strong>
               <div class="muted">${dt} · ${s.solicitante}</div>
             </div>
+            <span class="muted">${s.itens.length} ${s.itens.length===1?'item':'itens'} ›</span>
           </div>
-          <div style="margin-top:8px;">${itensHtml}</div>
         </div>`;
     }).join('');
   }catch(e){ container.innerHTML = `<p class="muted">Erro ao carregar histórico: ${e.message}</p>`; }
+}
+
+function abrirDetalheHistorico(id){
+  const s = historicoDados.find(x => String(x.idSolicitacaoCompra) === String(id));
+  if (!s) return;
+  const dt = new Date(s.dataSolicitacao).toLocaleDateString('pt-BR');
+  document.getElementById('histDetalheTitulo').textContent = `Solicitação nº ${s.numeroSolicitacao || s.idSolicitacaoCompra}`;
+  document.getElementById('histDetalheSub').textContent = `${dt} · ${s.solicitante}`;
+  const linhas = s.itens.map(it => `
+    <tr>
+      <td>${it.quantidade}</td>
+      <td>${it.unidade || '—'}</td>
+      <td>${it.produto}</td>
+      <td><span class="badge ${it.status.toLowerCase().startsWith('aprovad')?'lancada':'pendente'}">${it.status}</span></td>
+    </tr>`).join('');
+  document.getElementById('histDetalheTabela').innerHTML = `
+    <table style="width:100%; border-collapse:collapse; font-size:14px;">
+      <thead>
+        <tr style="text-align:left; color:var(--muted); font-size:12px;">
+          <th style="padding:6px 4px;">Qtd.</th>
+          <th style="padding:6px 4px;">Unid.</th>
+          <th style="padding:6px 4px;">Produto</th>
+          <th style="padding:6px 4px;">Status</th>
+        </tr>
+      </thead>
+      <tbody>${linhas}</tbody>
+    </table>`;
+  document.getElementById('overlayHistDetalhe').classList.add('open');
 }
 
 function setTab(tab){
