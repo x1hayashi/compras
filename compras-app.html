@@ -29,6 +29,11 @@
     background:var(--card); border:1px solid var(--border); border-radius:12px;
     padding:16px; margin-bottom:12px; box-shadow:0 1px 2px rgba(0,0,0,.03);
   }
+  .card.card-verde{background:#f0fdf4; border-color:#bbf7d0; border-left:4px solid var(--lancada);}
+  .card.card-amarelo{background:#fffbeb; border-color:#fde68a; border-left:4px solid var(--pendente);}
+  .subtabs{display:flex; gap:6px; margin-bottom:12px; overflow-x:auto;}
+  .subtab{padding:8px 12px; border-radius:20px; background:var(--card); border:1px solid var(--border); cursor:pointer; font-weight:600; font-size:12px; color:var(--muted); white-space:nowrap;}
+  .subtab.active{background:var(--text); color:#fff; border-color:var(--text);}
   input, select, textarea{
     width:100%; padding:11px 12px; border:1px solid var(--border); border-radius:8px;
     font-size:15px; font-family:inherit; background:#fff; color:var(--text);
@@ -114,7 +119,14 @@
       <div class="tab hidden" id="tabAdmin" data-tab="admin" onclick="setTab('admin')">Admin</div>
     </div>
     <div id="listItems"></div>
-    <div id="historicoView" class="hidden"></div>
+    <div id="historicoView" class="hidden">
+      <div class="subtabs" id="subtabsHistorico">
+        <div class="subtab active" data-grupo="aberto" onclick="setGrupoHistorico('aberto')">Em aberto (sem aprovação)</div>
+        <div class="subtab" data-grupo="em_cotacao" onclick="setGrupoHistorico('em_cotacao')">Em cotação</div>
+        <div class="subtab" data-grupo="cotacao_aprovada" onclick="setGrupoHistorico('cotacao_aprovada')">Cotação aprovada</div>
+      </div>
+      <div id="historicoLista"></div>
+    </div>
     <div id="adminView" class="hidden"></div>
   </div>
 
@@ -218,6 +230,7 @@ let itensNovos = [];
 let cadastrosCache = { filiais: [], setores: [] };
 let adminUsuarios = [];
 let historicoDados = [];
+let currentGrupoHistorico = 'aberto';
 
 function showToast(msg, isError=false){
   const t = document.getElementById('toast');
@@ -297,34 +310,48 @@ function setFilialTab(sigla){
   currentFilialSigla = sigla;
   localStorage.setItem('compras_filial', sigla);
   document.querySelectorAll('#tabsFilial .tab').forEach(t=>t.classList.toggle('active', t.dataset.filial===sigla));
-  if (currentTab === 'historico') carregarHistorico();
+  if (currentTab === 'historico') renderHistorico();
   else if (currentTab !== 'admin') render();
 }
 
+function setGrupoHistorico(grupo){
+  currentGrupoHistorico = grupo;
+  document.querySelectorAll('#subtabsHistorico .subtab').forEach(t=>t.classList.toggle('active', t.dataset.grupo===grupo));
+  renderHistorico();
+}
+
 async function carregarHistorico(){
-  const container = document.getElementById('historicoView');
-  container.innerHTML = '<p class="muted" style="text-align:center; margin-top:20px;">Carregando os últimos 90 dias...</p>';
+  const lista = document.getElementById('historicoLista');
+  lista.innerHTML = '<p class="muted" style="text-align:center; margin-top:20px;">Carregando os últimos 90 dias...</p>';
   try{
     historicoDados = await api('/gsb/historico-solicitacoes');
-    const filtrados = historicoDados.filter(s => !s.filialSigla || s.filialSigla === currentFilialSigla);
-    if (!filtrados.length){
-      container.innerHTML = '<p class="muted" style="text-align:center; margin-top:40px;">Nenhuma solicitação aprovada ou aguardando aprovação nos últimos 90 dias.</p>';
-      return;
-    }
-    container.innerHTML = filtrados.map(s=>{
-      const dt = new Date(s.dataSolicitacao).toLocaleDateString('pt-BR');
-      return `
-        <div class="card" style="cursor:pointer;" onclick="abrirDetalheHistorico('${s.idSolicitacaoCompra}')">
-          <div class="top-row">
-            <div>
-              <strong>Solicitação nº ${s.numeroSolicitacao || s.idSolicitacaoCompra}</strong>
-              <div class="muted">${dt} · ${s.solicitante}</div>
-            </div>
-            <span class="muted">${s.itens.length} ${s.itens.length===1?'item':'itens'} ›</span>
+    renderHistorico();
+  }catch(e){ lista.innerHTML = `<p class="muted">Erro ao carregar histórico: ${e.message}</p>`; }
+}
+
+function renderHistorico(){
+  const lista = document.getElementById('historicoLista');
+  const filtrados = historicoDados.filter(s =>
+    (!s.filialSigla || s.filialSigla === currentFilialSigla) && s.grupo === currentGrupoHistorico
+  );
+  if (!filtrados.length){
+    lista.innerHTML = '<p class="muted" style="text-align:center; margin-top:40px;">Nenhuma solicitação nesse grupo.</p>';
+    return;
+  }
+  lista.innerHTML = filtrados.map(s=>{
+    const dt = new Date(s.dataSolicitacao).toLocaleDateString('pt-BR');
+    const corClass = s.cor === 'verde' ? 'card-verde' : 'card-amarelo';
+    return `
+      <div class="card ${corClass}" style="cursor:pointer;" onclick="abrirDetalheHistorico('${s.idSolicitacaoCompra}')">
+        <div class="top-row">
+          <div>
+            <strong>Solicitação nº ${s.numeroSolicitacao || s.idSolicitacaoCompra}</strong>
+            <div class="muted">${dt} · ${s.solicitante}</div>
           </div>
-        </div>`;
-    }).join('');
-  }catch(e){ container.innerHTML = `<p class="muted">Erro ao carregar histórico: ${e.message}</p>`; }
+          <span class="muted">${s.itens.length} ${s.itens.length===1?'item':'itens'} ›</span>
+        </div>
+      </div>`;
+  }).join('');
 }
 
 function abrirDetalheHistorico(id){
@@ -338,7 +365,7 @@ function abrirDetalheHistorico(id){
       <td>${it.quantidade}</td>
       <td>${it.unidade || '—'}</td>
       <td>${it.produto}</td>
-      <td><span class="badge ${it.status.toLowerCase().startsWith('aprovad')?'lancada':'pendente'}">${it.status}</span></td>
+      <td><span class="badge ${it.status.toLowerCase().startsWith('aprovad')?'lancada':'pendente'}">${it.status}</span>${it.cotacaoStatus ? `<br><span class="badge ${it.cotacaoStatus.toLowerCase().startsWith('aprovad')?'lancada':'pendente'}" style="margin-top:4px;">Cotação: ${it.cotacaoStatus}</span>` : ''}</td>
     </tr>`).join('');
   document.getElementById('histDetalheTabela').innerHTML = `
     <table style="width:100%; border-collapse:collapse; font-size:14px;">
