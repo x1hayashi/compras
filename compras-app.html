@@ -110,9 +110,11 @@
       <div class="tab active" data-tab="pendente" onclick="setTab('pendente')">Pendentes</div>
       <div class="tab" data-tab="lancada" onclick="setTab('lancada')">Lançadas</div>
       <div class="tab" data-tab="cancelada" onclick="setTab('cancelada')">Canceladas</div>
+      <div class="tab" data-tab="historico" onclick="setTab('historico')">Histórico</div>
       <div class="tab hidden" id="tabAdmin" data-tab="admin" onclick="setTab('admin')">Admin</div>
     </div>
     <div id="listItems"></div>
+    <div id="historicoView" class="hidden"></div>
     <div id="adminView" class="hidden"></div>
   </div>
 
@@ -280,25 +282,51 @@ function setFilialTab(sigla){
   currentFilialSigla = sigla;
   localStorage.setItem('compras_filial', sigla);
   document.querySelectorAll('#tabsFilial .tab').forEach(t=>t.classList.toggle('active', t.dataset.filial===sigla));
-  if (currentTab !== 'admin') render();
+  if (currentTab === 'historico') carregarHistorico();
+  else if (currentTab !== 'admin') render();
+}
+
+async function carregarHistorico(){
+  const container = document.getElementById('historicoView');
+  container.innerHTML = '<p class="muted" style="text-align:center; margin-top:20px;">Carregando os últimos 90 dias...</p>';
+  try{
+    const dados = await api('/gsb/historico-solicitacoes');
+    const filtrados = dados.filter(s => !s.filialSigla || s.filialSigla === currentFilialSigla);
+    if (!filtrados.length){
+      container.innerHTML = '<p class="muted" style="text-align:center; margin-top:40px;">Nenhuma solicitação aprovada ou aguardando aprovação nos últimos 90 dias.</p>';
+      return;
+    }
+    container.innerHTML = filtrados.map(s=>{
+      const dt = new Date(s.dataSolicitacao).toLocaleDateString('pt-BR');
+      const itensHtml = s.itens.map(it=>{
+        const cls = it.status.toLowerCase().startsWith('aprovad') ? 'lancada' : 'pendente';
+        return `<div class="item-row"><span>${it.produto}</span><span>${it.quantidade} <span class="badge ${cls}" style="margin-left:6px;">${it.status}</span></span></div>`;
+      }).join('');
+      return `
+        <div class="card">
+          <div class="top-row">
+            <div>
+              <strong>Solicitação nº ${s.numeroSolicitacao || s.idSolicitacaoCompra}</strong>
+              <div class="muted">${dt} · ${s.solicitante}</div>
+            </div>
+          </div>
+          <div style="margin-top:8px;">${itensHtml}</div>
+        </div>`;
+    }).join('');
+  }catch(e){ container.innerHTML = `<p class="muted">Erro ao carregar histórico: ${e.message}</p>`; }
 }
 
 function setTab(tab){
   currentTab = tab;
   document.querySelectorAll('#tabsMain .tab').forEach(t=>t.classList.toggle('active', t.dataset.tab===tab));
-  if (tab === 'admin'){
-    document.getElementById('tabsFilial').classList.add('hidden');
-    document.getElementById('listItems').classList.add('hidden');
-    document.getElementById('fabAdd').classList.add('hidden');
-    document.getElementById('adminView').classList.remove('hidden');
-    carregarAdmin();
-  } else {
-    document.getElementById('tabsFilial').classList.remove('hidden');
-    document.getElementById('listItems').classList.remove('hidden');
-    document.getElementById('fabAdd').classList.remove('hidden');
-    document.getElementById('adminView').classList.add('hidden');
-    render();
-  }
+  document.getElementById('tabsFilial').classList.toggle('hidden', tab === 'admin');
+  document.getElementById('listItems').classList.toggle('hidden', tab === 'admin' || tab === 'historico');
+  document.getElementById('historicoView').classList.toggle('hidden', tab !== 'historico');
+  document.getElementById('adminView').classList.toggle('hidden', tab !== 'admin');
+  document.getElementById('fabAdd').classList.toggle('hidden', tab === 'admin' || tab === 'historico');
+  if (tab === 'admin') carregarAdmin();
+  else if (tab === 'historico') carregarHistorico();
+  else render();
 }
 
 function render(){
