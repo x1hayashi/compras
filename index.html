@@ -448,12 +448,17 @@ function onFiltroFuncionarioChange(){
 
 function atualizarListaFuncionarios(){
   const nomes = new Set();
-  solicitacoes.forEach(s => nomes.add(s.solicitante_nome));
-  historicoDados.forEach(s => nomes.add(s.solicitante));
+  solicitacoes
+    .filter(s => s.filial_sigla ? s.filial_sigla === currentFilialSigla : (s.filial_nome || '').includes(currentFilialSigla))
+    .forEach(s => nomes.add(s.solicitante_nome));
+  historicoDados
+    .filter(s => !s.filialSigla || s.filialSigla === currentFilialSigla)
+    .forEach(s => nomes.add(s.solicitante));
   const sel = document.getElementById('filtroFuncionario');
   const valorAtual = sel.value;
   sel.innerHTML = '<option value="">Todos</option>' + Array.from(nomes).filter(Boolean).sort().map(n=>`<option value="${n}">${n}</option>`).join('');
   sel.value = Array.from(nomes).includes(valorAtual) ? valorAtual : '';
+  if (!Array.from(nomes).includes(valorAtual)) filtroFuncionarioAtual = '';
 }
 
 async function carregarSolicitacoes(){
