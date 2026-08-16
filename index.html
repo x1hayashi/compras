@@ -156,6 +156,12 @@
     <div style="margin-bottom:12px;">
       <button class="filial-badge" onclick="trocarFilial()">🏢 <span id="filialAtivaLabel"></span> · Trocar</button>
     </div>
+    <div style="margin-bottom:12px;">
+      <label style="margin:0 0 4px;">Funcionário / Solicitante</label>
+      <select id="filtroFuncionario" onchange="onFiltroFuncionarioChange()">
+        <option value="">Todos</option>
+      </select>
+    </div>
     <div class="tabs" id="tabsMain">
       <div class="tab active" data-tab="pendente" onclick="setTab('pendente')">Pendentes</div>
       <div class="tab" data-tab="lancada" onclick="setTab('lancada')">Lançadas</div>
@@ -169,6 +175,21 @@
         <div class="subtab active" data-grupo="aberto" onclick="setGrupoHistorico('aberto')">Em aberto (sem aprovação)</div>
         <div class="subtab" data-grupo="em_cotacao" onclick="setGrupoHistorico('em_cotacao')">Em cotação</div>
         <div class="subtab" data-grupo="cotacao_aprovada" onclick="setGrupoHistorico('cotacao_aprovada')">Cotação aprovada</div>
+        <div class="subtab" data-grupo="pedido_aberto" onclick="setGrupoHistorico('pedido_aberto')">Pedido em aberto</div>
+        <div class="subtab" data-grupo="pedido_aprovado" onclick="setGrupoHistorico('pedido_aprovado')">Pedido aprovado</div>
+      </div>
+      <div class="card" style="padding:12px;">
+        <div style="display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap;">
+          <div style="flex:1; min-width:130px;">
+            <label style="margin:0 0 4px;">De</label>
+            <input type="date" id="histDataInicio">
+          </div>
+          <div style="flex:1; min-width:130px;">
+            <label style="margin:0 0 4px;">Até</label>
+            <input type="date" id="histDataFim">
+          </div>
+          <button class="btn-ghost btn-sm" style="height:43px;" onclick="carregarHistorico()">Filtrar</button>
+        </div>
       </div>
       <div id="historicoLista"></div>
     </div>
@@ -374,9 +395,28 @@ async function onFilialChange(){
   }catch(e){}
 }
 
+let filtroFuncionarioAtual = '';
+
+function onFiltroFuncionarioChange(){
+  filtroFuncionarioAtual = document.getElementById('filtroFuncionario').value;
+  if (currentTab === 'historico') renderHistorico();
+  else if (currentTab !== 'admin') render();
+}
+
+function atualizarListaFuncionarios(){
+  const nomes = new Set();
+  solicitacoes.forEach(s => nomes.add(s.solicitante_nome));
+  historicoDados.forEach(s => nomes.add(s.solicitante));
+  const sel = document.getElementById('filtroFuncionario');
+  const valorAtual = sel.value;
+  sel.innerHTML = '<option value="">Todos</option>' + Array.from(nomes).filter(Boolean).sort().map(n=>`<option value="${n}">${n}</option>`).join('');
+  sel.value = Array.from(nomes).includes(valorAtual) ? valorAtual : '';
+}
+
 async function carregarSolicitacoes(){
   try{
     solicitacoes = await api('/solicitacoes');
+    atualizarListaFuncionarios();
     render();
   }catch(e){ showToast(e.message, true); }
 }
@@ -387,11 +427,29 @@ function setGrupoHistorico(grupo){
   renderHistorico();
 }
 
+function inicializarDatasHistorico(){
+  const fimInput = document.getElementById('histDataFim');
+  const inicioInput = document.getElementById('histDataInicio');
+  if (!fimInput.value){
+    const hoje = new Date();
+    fimInput.value = hoje.toISOString().slice(0,10);
+  }
+  if (!inicioInput.value){
+    const noventa = new Date();
+    noventa.setDate(noventa.getDate() - 90);
+    inicioInput.value = noventa.toISOString().slice(0,10);
+  }
+}
+
 async function carregarHistorico(){
+  inicializarDatasHistorico();
   const lista = document.getElementById('historicoLista');
-  lista.innerHTML = '<p class="muted" style="text-align:center; margin-top:20px;">Carregando os últimos 90 dias...</p>';
+  lista.innerHTML = '<p class="muted" style="text-align:center; margin-top:20px;">Carregando...</p>';
   try{
-    historicoDados = await api('/gsb/historico-solicitacoes');
+    const inicio = document.getElementById('histDataInicio').value;
+    const fim = document.getElementById('histDataFim').value;
+    historicoDados = await api(`/gsb/historico-solicitacoes?inicio=${inicio}&fim=${fim}`);
+    atualizarListaFuncionarios();
     renderHistorico();
   }catch(e){ lista.innerHTML = `<p class="muted">Erro ao carregar histórico: ${e.message}</p>`; }
 }
@@ -399,7 +457,9 @@ async function carregarHistorico(){
 function renderHistorico(){
   const lista = document.getElementById('historicoLista');
   const filtrados = historicoDados.filter(s =>
-    (!s.filialSigla || s.filialSigla === currentFilialSigla) && s.grupo === currentGrupoHistorico
+    (!s.filialSigla || s.filialSigla === currentFilialSigla) &&
+    s.grupo === currentGrupoHistorico &&
+    (!filtroFuncionarioAtual || s.solicitante === filtroFuncionarioAtual)
   );
   if (!filtrados.length){
     lista.innerHTML = '<p class="muted" style="text-align:center; margin-top:40px;">Nenhuma solicitação nesse grupo.</p>';
@@ -466,7 +526,8 @@ function render(){
     const filialOk = s.filial_sigla
       ? s.filial_sigla === currentFilialSigla
       : (s.filial_nome || '').includes(currentFilialSigla); // fallback p/ registros antigos sem filial_sigla
-    return statusOk && filialOk;
+    const funcOk = !filtroFuncionarioAtual || s.solicitante_nome === filtroFuncionarioAtual;
+    return statusOk && filialOk && funcOk;
   });
   const container = document.getElementById('listItems');
   if (!filtradas.length){
