@@ -453,7 +453,7 @@ function atualizarListaFuncionarios(){
     .forEach(s => nomes.add(s.solicitante_nome));
   historicoDados
     .filter(s => !s.filialSigla || s.filialSigla === currentFilialSigla)
-    .forEach(s => nomes.add(s.solicitante));
+    .forEach(s => { nomes.add(s.solicitante); nomes.add(s.comprador); nomes.add(s.responsavelPedido); });
   const sel = document.getElementById('filtroFuncionario');
   const valorAtual = sel.value;
   sel.innerHTML = '<option value="">Todos</option>' + Array.from(nomes).filter(Boolean).sort().map(n=>`<option value="${n}">${n}</option>`).join('');
@@ -507,31 +507,36 @@ function renderHistorico(){
   const filtrados = historicoDados.filter(s =>
     (!s.filialSigla || s.filialSigla === currentFilialSigla) &&
     s.grupo === currentGrupoHistorico &&
-    (!filtroFuncionarioAtual || s.solicitante === filtroFuncionarioAtual)
+    (!filtroFuncionarioAtual || [s.solicitante, s.comprador, s.responsavelPedido].includes(filtroFuncionarioAtual))
   );
   if (!filtrados.length){
     lista.innerHTML = '<p class="muted" style="text-align:center; margin-top:40px;">Nenhuma solicitação nesse grupo.</p>';
     return;
   }
   lista.innerHTML = filtrados.map(s=>{
-    const dt = new Date(s.dataSolicitacao).toLocaleDateString('pt-BR');
     const corClass = s.cor === 'verde' ? 'card-verde' : 'card-amarelo';
-    const extras = [
-      s.numeroCotacao ? `Cotação nº ${s.numeroCotacao}` : null,
-      s.numeroPedido ? `Pedido nº ${s.numeroPedido}` : null,
-    ].filter(Boolean).join(' · ');
-    const titulo = s.avulso
-      ? (s.numeroPedido
-          ? `Pedido avulso nº ${s.numeroPedido}`
-          : `Cotação avulsa${s.numeroCotacao ? ' nº ' + s.numeroCotacao : ''}`)
-      : `Solicitação nº ${s.numeroSolicitacao || s.idSolicitacaoCompra}`;
+    const fmtData = (d) => d ? new Date(d).toLocaleDateString('pt-BR') : null;
+
+    const linhaSolic = s.numeroSolicitacao
+      ? `Nº Solicitação ${s.numeroSolicitacao} · ${fmtData(s.dataSolicitacao) || '—'} · ${s.solicitante || '—'}`
+      : null;
+    const linhaCota = s.numeroCotacao
+      ? `Nº Cotação ${s.numeroCotacao} · ${fmtData(s.dataCotacao) || '—'} · ${s.comprador || '—'}`
+      : null;
+    const linhaPedido = s.numeroPedido
+      ? `Nº Pedido ${s.numeroPedido} · ${fmtData(s.dataPedido) || '—'} · ${s.responsavelPedido || '—'}`
+      : null;
+
+    const titulo = linhaSolic ? `Solicitação` : (linhaCota ? 'Cotação avulsa' : 'Pedido avulso');
+    const linhas = [linhaSolic, linhaCota, linhaPedido].filter(Boolean)
+      .map(l => `<div class="muted" style="margin-top:2px;">${l}</div>`).join('');
+
     return `
       <div class="card ${corClass}" style="cursor:pointer;" onclick="abrirDetalheHistorico('${s.idSolicitacaoCompra}')">
         <div class="top-row">
           <div>
             <strong>${titulo}</strong>
-            <div class="muted">${dt} · ${s.solicitante}${s.avulso ? ' · sem solicitação vinculada' : ''}</div>
-            ${extras && !s.avulso ? `<div class="muted" style="margin-top:2px; font-weight:600;">${extras}</div>` : ''}
+            ${linhas}
           </div>
           <span class="muted">${s.itens.length} ${s.itens.length===1?'item':'itens'} ›</span>
         </div>
@@ -542,17 +547,20 @@ function renderHistorico(){
 function abrirDetalheHistorico(id){
   const s = historicoDados.find(x => String(x.idSolicitacaoCompra) === String(id));
   if (!s) return;
-  const dt = new Date(s.dataSolicitacao).toLocaleDateString('pt-BR');
-  document.getElementById('histDetalheTitulo').textContent = s.avulso
-    ? (s.numeroPedido
-        ? `Pedido avulso nº ${s.numeroPedido}`
-        : `Cotação avulsa${s.numeroCotacao ? ' nº ' + s.numeroCotacao : ''}`)
-    : `Solicitação nº ${s.numeroSolicitacao || s.idSolicitacaoCompra}`;
-  const extrasDet = [
-    s.numeroCotacao ? `Cotação nº ${s.numeroCotacao}` : null,
-    s.numeroPedido ? `Pedido nº ${s.numeroPedido}` : null,
-  ].filter(Boolean).join(' · ');
-  document.getElementById('histDetalheSub').textContent = `${dt} · ${s.solicitante}` + (extrasDet ? ' · ' + extrasDet : '');
+  const fmtData = (d) => d ? new Date(d).toLocaleDateString('pt-BR') : null;
+  const linhaSolic = s.numeroSolicitacao
+    ? `Nº Solicitação ${s.numeroSolicitacao} · ${fmtData(s.dataSolicitacao) || '—'} · ${s.solicitante || '—'}`
+    : null;
+  const linhaCota = s.numeroCotacao
+    ? `Nº Cotação ${s.numeroCotacao} · ${fmtData(s.dataCotacao) || '—'} · ${s.comprador || '—'}`
+    : null;
+  const linhaPedido = s.numeroPedido
+    ? `Nº Pedido ${s.numeroPedido} · ${fmtData(s.dataPedido) || '—'} · ${s.responsavelPedido || '—'}`
+    : null;
+  const titulo = linhaSolic ? `Solicitação` : (linhaCota ? 'Cotação avulsa' : 'Pedido avulso');
+  document.getElementById('histDetalheTitulo').textContent = titulo;
+  document.getElementById('histDetalheSub').innerHTML = [linhaSolic, linhaCota, linhaPedido].filter(Boolean)
+    .map(l => `<div>${l}</div>`).join('');
   const temPreco = s.itens.some(it => it.valorUnitario != null);
   function formatarMoeda(v){
     return v == null ? '—' : Number(v).toLocaleString('pt-BR', { style:'currency', currency:'BRL' });
