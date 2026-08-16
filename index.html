@@ -520,13 +520,16 @@ function renderHistorico(){
       s.numeroCotacao ? `Cotação nº ${s.numeroCotacao}` : null,
       s.numeroPedido ? `Pedido nº ${s.numeroPedido}` : null,
     ].filter(Boolean).join(' · ');
+    const titulo = s.avulso
+      ? `Pedido avulso${s.numeroPedido ? ' nº ' + s.numeroPedido : ''}`
+      : `Solicitação nº ${s.numeroSolicitacao || s.idSolicitacaoCompra}`;
     return `
       <div class="card ${corClass}" style="cursor:pointer;" onclick="abrirDetalheHistorico('${s.idSolicitacaoCompra}')">
         <div class="top-row">
           <div>
-            <strong>Solicitação nº ${s.numeroSolicitacao || s.idSolicitacaoCompra}</strong>
-            <div class="muted">${dt} · ${s.solicitante}</div>
-            ${extras ? `<div class="muted" style="margin-top:2px; font-weight:600;">${extras}</div>` : ''}
+            <strong>${titulo}</strong>
+            <div class="muted">${dt} · ${s.solicitante}${s.avulso ? ' · sem solicitação vinculada' : ''}</div>
+            ${extras && !s.avulso ? `<div class="muted" style="margin-top:2px; font-weight:600;">${extras}</div>` : ''}
           </div>
           <span class="muted">${s.itens.length} ${s.itens.length===1?'item':'itens'} ›</span>
         </div>
@@ -538,17 +541,24 @@ function abrirDetalheHistorico(id){
   const s = historicoDados.find(x => String(x.idSolicitacaoCompra) === String(id));
   if (!s) return;
   const dt = new Date(s.dataSolicitacao).toLocaleDateString('pt-BR');
-  document.getElementById('histDetalheTitulo').textContent = `Solicitação nº ${s.numeroSolicitacao || s.idSolicitacaoCompra}`;
+  document.getElementById('histDetalheTitulo').textContent = s.avulso
+    ? `Pedido avulso${s.numeroPedido ? ' nº ' + s.numeroPedido : ''}`
+    : `Solicitação nº ${s.numeroSolicitacao || s.idSolicitacaoCompra}`;
   const extrasDet = [
     s.numeroCotacao ? `Cotação nº ${s.numeroCotacao}` : null,
     s.numeroPedido ? `Pedido nº ${s.numeroPedido}` : null,
   ].filter(Boolean).join(' · ');
   document.getElementById('histDetalheSub').textContent = `${dt} · ${s.solicitante}` + (extrasDet ? ' · ' + extrasDet : '');
+  const temPreco = s.itens.some(it => it.valorUnitario != null);
+  function formatarMoeda(v){
+    return v == null ? '—' : Number(v).toLocaleString('pt-BR', { style:'currency', currency:'BRL' });
+  }
   const linhas = s.itens.map(it => `
     <tr>
       <td>${it.quantidade}</td>
       <td>${it.unidade || '—'}</td>
       <td>${it.produto}</td>
+      ${temPreco ? `<td>${formatarMoeda(it.valorUnitario)}</td><td>${formatarMoeda(it.valorTotal)}</td>` : ''}
     </tr>`).join('');
   document.getElementById('histDetalheTabela').innerHTML = `
     <table style="width:100%; border-collapse:collapse; font-size:14px;">
@@ -557,6 +567,7 @@ function abrirDetalheHistorico(id){
           <th style="padding:6px 4px;">Qtd.</th>
           <th style="padding:6px 4px;">Unid.</th>
           <th style="padding:6px 4px;">Produto</th>
+          ${temPreco ? `<th style="padding:6px 4px;">Preço Unit.</th><th style="padding:6px 4px;">Total</th>` : ''}
         </tr>
       </thead>
       <tbody>${linhas}</tbody>
