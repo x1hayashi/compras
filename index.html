@@ -34,6 +34,27 @@
   .subtabs{display:flex; gap:6px; margin-bottom:12px; overflow-x:auto;}
   .subtab{padding:8px 12px; border-radius:20px; background:var(--card); border:1px solid var(--border); cursor:pointer; font-weight:600; font-size:12px; color:var(--muted); white-space:nowrap;}
   .subtab.active{background:var(--text); color:#fff; border-color:var(--text);}
+  .filial-screen{display:flex; align-items:center; justify-content:center; min-height:80vh; padding:20px;}
+  .filial-box{max-width:420px; width:100%; text-align:center;}
+  .filial-icon{font-size:48px; margin-bottom:12px;}
+  .filial-title{font-size:22px; font-weight:700; margin-bottom:6px;}
+  .filial-sub{color:var(--muted); font-size:14px; margin-bottom:24px;}
+  .filial-btns{display:flex; flex-direction:column; gap:12px;}
+  .filial-btn{
+    display:flex; align-items:center; gap:14px; padding:16px; border-radius:12px;
+    border:1px solid var(--border); background:var(--card); cursor:pointer; text-align:left;
+  }
+  .filial-btn:hover{border-color:var(--accent); background:#eff6ff;}
+  .filial-btn-sigla{
+    font-weight:700; font-size:16px; background:var(--accent); color:#fff;
+    padding:8px 12px; border-radius:8px; min-width:52px; text-align:center;
+  }
+  .filial-btn-name{font-weight:600; font-size:16px;}
+  .filial-btn-desc{font-size:13px; color:var(--muted); margin-top:2px;}
+  .filial-badge{
+    display:inline-flex; align-items:center; gap:6px; padding:5px 12px;
+    background:#eff6ff; color:var(--accent); border-radius:20px; font-size:13px; font-weight:600; cursor:pointer; border:none;
+  }
   input, select, textarea{
     width:100%; padding:11px 12px; border:1px solid var(--border); border-radius:8px;
     font-size:15px; font-family:inherit; background:#fff; color:var(--text);
@@ -98,18 +119,42 @@
   <div id="loginView" class="card hidden">
     <h2 style="margin-top:0;">Entrar</h2>
     <label>WhatsApp</label>
-    <input id="loginWhats" placeholder="55649XXXXXXXX" inputmode="tel">
+    <input id="loginWhats" placeholder="+55 (xx) xxxxx-xxxx" inputmode="tel" oninput="mascararWhats(this)">
     <label>Senha</label>
     <input id="loginSenha" type="password">
     <button class="btn-primary" style="margin-top:16px;" onclick="login()">Entrar</button>
     <p class="muted" style="margin-top:10px;">Use o mesmo usuário e senha do app da oficina.</p>
   </div>
 
+  <!-- SELEÇÃO DE FILIAL -->
+  <div id="filialScreen" class="filial-screen hidden">
+    <div class="filial-box">
+      <div class="filial-icon">🏢</div>
+      <div class="filial-title">Selecione a Unidade</div>
+      <div class="filial-sub">Escolha a filial para ver e enviar solicitações de compra</div>
+      <div class="filial-btns">
+        <button class="filial-btn" onclick="selecionarFilial('HGO')">
+          <span class="filial-btn-sigla">HGO</span>
+          <div>
+            <div class="filial-btn-name">Goiás</div>
+            <div class="filial-btn-desc">Filial HGO</div>
+          </div>
+        </button>
+        <button class="filial-btn" onclick="selecionarFilial('HBA')">
+          <span class="filial-btn-sigla">HBA</span>
+          <div>
+            <div class="filial-btn-name">Bahia</div>
+            <div class="filial-btn-desc">Filial HBA</div>
+          </div>
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- LISTA -->
   <div id="listView" class="hidden">
-    <div class="tabs" id="tabsFilial">
-      <div class="tab active" data-filial="HGO" onclick="setFilialTab('HGO')">Goiás (HGO)</div>
-      <div class="tab" data-filial="HBA" onclick="setFilialTab('HBA')">Bahia (HBA)</div>
+    <div style="margin-bottom:12px;">
+      <button class="filial-badge" onclick="trocarFilial()">🏢 <span id="filialAtivaLabel"></span> · Trocar</button>
     </div>
     <div class="tabs" id="tabsMain">
       <div class="tab active" data-tab="pendente" onclick="setTab('pendente')">Pendentes</div>
@@ -223,7 +268,7 @@ const API = "https://compras-proxy-0m10.onrender.com";
 let token = localStorage.getItem("compras_token") || "";
 let currentUser = null;
 let currentTab = "pendente";
-let currentFilialSigla = localStorage.getItem("compras_filial") || "HGO";
+let currentFilialSigla = null;
 let solicitacoes = [];
 let produtoSelecionado = null;
 let itensNovos = [];
@@ -254,20 +299,50 @@ function logout(){
 }
 
 async function init(){
-  if (!token){ document.getElementById('loginView').classList.remove('hidden'); return; }
+  if (!token){
+    document.getElementById('loginView').classList.remove('hidden');
+    const w = document.getElementById('loginWhats');
+    if (!w.value) w.value = '+55';
+    return;
+  }
   try{
     currentUser = await api('/me');
     document.getElementById('userLabel').innerHTML = currentUser.nome + ' <button onclick="logout()">Sair</button>';
-    document.getElementById('listView').classList.remove('hidden');
-    document.getElementById('fabAdd').classList.remove('hidden');
     if (currentUser.admin) document.getElementById('tabAdmin').classList.remove('hidden');
-    document.querySelectorAll('#tabsFilial .tab').forEach(t=>t.classList.toggle('active', t.dataset.filial===currentFilialSigla));
     await carregarCadastros();
-    await carregarSolicitacoes();
+    document.getElementById('filialScreen').classList.remove('hidden');
   }catch(e){
     localStorage.removeItem('compras_token'); token = '';
     document.getElementById('loginView').classList.remove('hidden');
+    const w = document.getElementById('loginWhats');
+    if (!w.value) w.value = '+55';
   }
+}
+
+async function selecionarFilial(sigla){
+  currentFilialSigla = sigla;
+  document.getElementById('filialAtivaLabel').textContent = sigla === 'HGO' ? 'Goiás (HGO)' : 'Bahia (HBA)';
+  document.getElementById('filialScreen').classList.add('hidden');
+  document.getElementById('listView').classList.remove('hidden');
+  await carregarSolicitacoes();
+  setTab('pendente');
+}
+
+function trocarFilial(){
+  document.getElementById('listView').classList.add('hidden');
+  document.getElementById('filialScreen').classList.remove('hidden');
+}
+
+function mascararWhats(el){
+  let v = el.value.replace(/\D/g, '');
+  if (v.startsWith('55')) v = v.slice(2);
+  v = v.slice(0, 11); // DDD (2) + número (9)
+  let out = '+55';
+  if (v.length > 0) out += ' (' + v.slice(0, 2);
+  if (v.length >= 2) out += ') ';
+  if (v.length > 2) out += v.slice(2, v.length > 7 ? 7 : v.length);
+  if (v.length > 7) out += '-' + v.slice(7, 11);
+  el.value = out;
 }
 
 async function login(){
@@ -304,14 +379,6 @@ async function carregarSolicitacoes(){
     solicitacoes = await api('/solicitacoes');
     render();
   }catch(e){ showToast(e.message, true); }
-}
-
-function setFilialTab(sigla){
-  currentFilialSigla = sigla;
-  localStorage.setItem('compras_filial', sigla);
-  document.querySelectorAll('#tabsFilial .tab').forEach(t=>t.classList.toggle('active', t.dataset.filial===sigla));
-  if (currentTab === 'historico') renderHistorico();
-  else if (currentTab !== 'admin') render();
 }
 
 function setGrupoHistorico(grupo){
@@ -365,7 +432,6 @@ function abrirDetalheHistorico(id){
       <td>${it.quantidade}</td>
       <td>${it.unidade || '—'}</td>
       <td>${it.produto}</td>
-      <td><span class="badge ${it.status.toLowerCase().startsWith('aprovad')?'lancada':'pendente'}">${it.status}</span>${it.cotacaoStatus ? `<br><span class="badge ${it.cotacaoStatus.toLowerCase().startsWith('aprovad')?'lancada':'pendente'}" style="margin-top:4px;">Cotação: ${it.cotacaoStatus}</span>` : ''}</td>
     </tr>`).join('');
   document.getElementById('histDetalheTabela').innerHTML = `
     <table style="width:100%; border-collapse:collapse; font-size:14px;">
@@ -374,7 +440,6 @@ function abrirDetalheHistorico(id){
           <th style="padding:6px 4px;">Qtd.</th>
           <th style="padding:6px 4px;">Unid.</th>
           <th style="padding:6px 4px;">Produto</th>
-          <th style="padding:6px 4px;">Status</th>
         </tr>
       </thead>
       <tbody>${linhas}</tbody>
@@ -385,7 +450,6 @@ function abrirDetalheHistorico(id){
 function setTab(tab){
   currentTab = tab;
   document.querySelectorAll('#tabsMain .tab').forEach(t=>t.classList.toggle('active', t.dataset.tab===tab));
-  document.getElementById('tabsFilial').classList.toggle('hidden', tab === 'admin');
   document.getElementById('listItems').classList.toggle('hidden', tab === 'admin' || tab === 'historico');
   document.getElementById('historicoView').classList.toggle('hidden', tab !== 'historico');
   document.getElementById('adminView').classList.toggle('hidden', tab !== 'admin');
