@@ -521,7 +521,9 @@ function renderHistorico(){
       s.numeroPedido ? `Pedido nº ${s.numeroPedido}` : null,
     ].filter(Boolean).join(' · ');
     const titulo = s.avulso
-      ? `Pedido avulso${s.numeroPedido ? ' nº ' + s.numeroPedido : ''}`
+      ? (s.numeroPedido
+          ? `Pedido avulso nº ${s.numeroPedido}`
+          : `Cotação avulsa${s.numeroCotacao ? ' nº ' + s.numeroCotacao : ''}`)
       : `Solicitação nº ${s.numeroSolicitacao || s.idSolicitacaoCompra}`;
     return `
       <div class="card ${corClass}" style="cursor:pointer;" onclick="abrirDetalheHistorico('${s.idSolicitacaoCompra}')">
@@ -542,7 +544,9 @@ function abrirDetalheHistorico(id){
   if (!s) return;
   const dt = new Date(s.dataSolicitacao).toLocaleDateString('pt-BR');
   document.getElementById('histDetalheTitulo').textContent = s.avulso
-    ? `Pedido avulso${s.numeroPedido ? ' nº ' + s.numeroPedido : ''}`
+    ? (s.numeroPedido
+        ? `Pedido avulso nº ${s.numeroPedido}`
+        : `Cotação avulsa${s.numeroCotacao ? ' nº ' + s.numeroCotacao : ''}`)
     : `Solicitação nº ${s.numeroSolicitacao || s.idSolicitacaoCompra}`;
   const extrasDet = [
     s.numeroCotacao ? `Cotação nº ${s.numeroCotacao}` : null,
