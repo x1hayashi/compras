@@ -1,679 +1,858 @@
-const http   = require("http");
-const https  = require("https");
-const url    = require("url");
-const crypto = require("crypto");
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Compras — Hayashi</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#f5f6f8; --card:#ffffff; --text:#1a1d23; --muted:#6b7280;
+    --border:#e5e7eb; --accent:#2563eb; --accent-dark:#1d4ed8;
+    --pendente:#f59e0b; --lancada:#16a34a; --cancelada:#dc2626;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; font-family:'IBM Plex Sans',sans-serif; background:var(--bg); color:var(--text);
+    font-size:16px; -webkit-font-smoothing:antialiased;
+  }
+  header{
+    background:var(--card); border-bottom:1px solid var(--border); padding:14px 16px;
+    display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; z-index:10;
+  }
+  header h1{font-size:18px; margin:0; font-weight:700;}
+  header .user{font-size:13px; color:var(--muted); display:flex; align-items:center; gap:10px;}
+  header .user button{background:none; border:none; color:var(--accent); font-size:13px; cursor:pointer; padding:0;}
+  #app{max-width:640px; margin:0 auto; padding:16px;}
+  .card{
+    background:var(--card); border:1px solid var(--border); border-radius:12px;
+    padding:16px; margin-bottom:12px; box-shadow:0 1px 2px rgba(0,0,0,.03);
+  }
+  .card.card-verde{background:#f0fdf4; border-color:#bbf7d0; border-left:4px solid var(--lancada);}
+  .card.card-amarelo{background:#fffbeb; border-color:#fde68a; border-left:4px solid var(--pendente);}
+  .subtabs{display:flex; gap:6px; margin-bottom:12px; flex-wrap:wrap;}
+  .subtab{padding:7px 10px; border-radius:20px; background:var(--card); border:1px solid var(--border); cursor:pointer; font-weight:600; font-size:11px; color:var(--muted); white-space:nowrap;}
+  .subtab.active{background:var(--text); color:#fff; border-color:var(--text);}
+  .filial-screen{display:flex; align-items:center; justify-content:center; min-height:80vh; padding:20px;}
+  .filial-box{max-width:420px; width:100%; text-align:center;}
+  .filial-icon{font-size:48px; margin-bottom:12px;}
+  .filial-title{font-size:22px; font-weight:700; margin-bottom:6px;}
+  .filial-sub{color:var(--muted); font-size:14px; margin-bottom:24px;}
+  .filial-btns{display:flex; flex-direction:column; gap:12px;}
+  .filial-btn{
+    display:flex; align-items:center; gap:14px; padding:16px; border-radius:12px;
+    border:1px solid var(--border); background:var(--card); cursor:pointer; text-align:left;
+  }
+  .filial-btn:hover{border-color:var(--accent); background:#eff6ff;}
+  .filial-btn-sigla{
+    font-weight:700; font-size:16px; background:var(--accent); color:#fff;
+    padding:8px 12px; border-radius:8px; min-width:52px; text-align:center;
+  }
+  .filial-btn-name{font-weight:600; font-size:16px;}
+  .filial-btn-desc{font-size:13px; color:var(--muted); margin-top:2px;}
+  .filial-badge{
+    display:inline-flex; align-items:center; gap:6px; padding:5px 12px;
+    background:#eff6ff; color:var(--accent); border-radius:20px; font-size:13px; font-weight:600; cursor:pointer; border:none;
+  }
+  input, select, textarea{
+    width:100%; padding:11px 12px; border:1px solid var(--border); border-radius:8px;
+    font-size:15px; font-family:inherit; background:#fff; color:var(--text);
+  }
+  input[readonly]{background:var(--bg); color:var(--muted);}
+  label{font-size:13px; color:var(--muted); font-weight:500; display:block; margin:10px 0 4px;}
+  button{
+    font-family:inherit; font-size:15px; font-weight:600; border:none; border-radius:8px;
+    padding:12px 16px; cursor:pointer;
+  }
+  .btn-primary{background:var(--accent); color:#fff; width:100%;}
+  .btn-primary:hover{background:var(--accent-dark);}
+  .btn-ghost{background:transparent; color:var(--accent); border:1px solid var(--accent);}
+  .btn-danger{background:transparent; color:var(--cancelada); border:1px solid var(--cancelada);}
+  .btn-sm{padding:7px 12px; font-size:13px;}
+  .tabs{display:flex; gap:6px; margin-bottom:14px; flex-wrap:wrap;}
+  .tab{flex:1 1 auto; text-align:center; padding:9px 6px; border-radius:8px; background:var(--card); border:1px solid var(--border); cursor:pointer; font-weight:600; font-size:12px; color:var(--muted); white-space:nowrap;}
+  .tab.active{background:var(--accent); color:#fff; border-color:var(--accent);}
+  .badge{display:inline-block; padding:3px 10px; border-radius:20px; font-size:12px; font-weight:600; color:#fff;}
+  .badge.pendente{background:var(--pendente);}
+  .badge.lancada{background:var(--lancada);}
+  .badge.cancelada{background:var(--cancelada);}
+  .badge.aprovado{background:var(--lancada);}
+  .badge.bloqueado{background:var(--cancelada);}
+  .item-row{display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px dashed var(--border); font-size:14px;}
+  .item-row:last-child{border-bottom:none;}
+  .muted{color:var(--muted); font-size:13px;}
+  .top-row{display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px;}
+  .fab{position:fixed; bottom:20px; right:20px; width:56px; height:56px; border-radius:50%; background:var(--accent); color:#fff; font-size:28px; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 12px rgba(0,0,0,.2); cursor:pointer;}
+  .autocomplete-box{position:relative;}
+  .suggestions{position:absolute; z-index:20; background:#fff; border:1px solid var(--border); border-radius:8px; width:100%; max-height:200px; overflow-y:auto; box-shadow:0 4px 12px rgba(0,0,0,.1);}
+  .suggestion{padding:10px 12px; cursor:pointer; font-size:14px; display:flex; justify-content:space-between;}
+  .suggestion:hover{background:var(--bg);}
+  .suggestion .unid{color:var(--muted); font-size:12px;}
+  .item-added{display:flex; justify-content:space-between; align-items:center; background:var(--bg); padding:8px 10px; border-radius:8px; margin-bottom:6px; font-size:14px;}
+  .item-added button{background:none; border:none; color:var(--cancelada); font-size:18px; padding:0; cursor:pointer;}
+  .hidden{display:none !important;}
+  .toast{position:fixed; bottom:20px; left:50%; transform:translateX(-50%) translateY(100px); background:#1a1d23; color:#fff; padding:12px 20px; border-radius:8px; font-size:14px; transition:.3s; z-index:100; max-width:90%; text-align:center;}
+  .toast.show{transform:translateX(-50%) translateY(0);}
+  .toast.error{background:var(--cancelada);}
+  .overlay{position:fixed; inset:0; background:rgba(0,0,0,.4); display:none; align-items:flex-end; z-index:50;}
+  .overlay.open{display:flex;}
+  .sheet{background:#fff; width:100%; max-height:90vh; overflow-y:auto; border-radius:16px 16px 0 0; padding:20px;}
+  .sheet-header{display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;}
+  .sheet-header h2{margin:0; font-size:18px;}
+  .close-btn{background:none; border:none; font-size:24px; color:var(--muted); cursor:pointer;}
+  .admin-user{display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid var(--border);}
+  .admin-user:last-child{border-bottom:none;}
+  .admin-user-actions{display:flex; gap:6px; flex-wrap:wrap; margin-top:6px;}
+</style>
+</head>
+<body>
 
+<header>
+  <h1>🛒 Compras</h1>
+  <div style="display:flex; align-items:center; gap:12px;">
+    <button id="btnAdminIcon" class="hidden" onclick="setTab('admin')" title="Administração" style="font-size:19px; background:none; border:none; cursor:pointer; padding:0;">⚙️</button>
+    <div class="user" id="userLabel"></div>
+  </div>
+</header>
+
+<div id="app">
+
+  <!-- LOGIN -->
+  <div id="loginView" class="card hidden">
+    <h2 style="margin-top:0;">Entrar</h2>
+    <label>WhatsApp</label>
+    <input id="loginWhats" placeholder="+55 (xx) xxxxx-xxxx" inputmode="tel" oninput="mascararWhats(this)">
+    <label>Senha</label>
+    <input id="loginSenha" type="password">
+    <button class="btn-primary" style="margin-top:16px;" onclick="login()">Entrar</button>
+    <button class="btn-ghost" style="margin-top:10px; width:100%;" onclick="abrirRegistro()">Criar conta</button>
+  </div>
+
+  <!-- REGISTRO -->
+  <div id="registerView" class="card hidden">
+    <h2 style="margin-top:0;">Criar conta</h2>
+    <label>Nome completo</label>
+    <input id="regNome" placeholder="Seu nome">
+    <label>WhatsApp</label>
+    <input id="regWhats" placeholder="+55 (xx) xxxxx-xxxx" inputmode="tel" oninput="mascararWhats(this)">
+    <label>Senha</label>
+    <input id="regSenha" type="password">
+    <label>Filial</label>
+    <select id="regFilial">
+      <option value="HGO">Goiás (HGO)</option>
+      <option value="HBA">Bahia (HBA)</option>
+    </select>
+    <button class="btn-primary" style="margin-top:16px;" onclick="registrar()">Criar conta</button>
+    <button class="btn-ghost" style="margin-top:10px; width:100%;" onclick="fecharRegistro()">Voltar para o login</button>
+    <p class="muted" style="margin-top:10px;">Depois de criar, aguarde a aprovação de um administrador para conseguir entrar.</p>
+  </div>
+
+  <!-- SELEÇÃO DE FILIAL -->
+  <div id="filialScreen" class="filial-screen hidden">
+    <div class="filial-box">
+      <div class="filial-icon">🏢</div>
+      <div class="filial-title">Selecione a Unidade</div>
+      <div class="filial-sub">Escolha a filial para ver e enviar solicitações de compra</div>
+      <div class="filial-btns">
+        <button class="filial-btn" onclick="selecionarFilial('HGO')">
+          <span class="filial-btn-sigla">HGO</span>
+          <div>
+            <div class="filial-btn-name">Goiás</div>
+            <div class="filial-btn-desc">Filial HGO</div>
+          </div>
+        </button>
+        <button class="filial-btn" onclick="selecionarFilial('HBA')">
+          <span class="filial-btn-sigla">HBA</span>
+          <div>
+            <div class="filial-btn-name">Bahia</div>
+            <div class="filial-btn-desc">Filial HBA</div>
+          </div>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- LISTA -->
+  <div id="listView" class="hidden">
+    <div style="margin-bottom:12px;">
+      <button class="filial-badge" onclick="trocarFilial()">🏢 <span id="filialAtivaLabel"></span> · Trocar</button>
+    </div>
+    <div style="margin-bottom:12px;">
+      <label style="margin:0 0 4px;">Funcionário / Solicitante</label>
+      <select id="filtroFuncionario" onchange="onFiltroFuncionarioChange()">
+        <option value="">Todos</option>
+      </select>
+    </div>
+    <div class="tabs" id="tabsMain">
+      <div class="tab active" data-tab="pendente" onclick="setTab('pendente')">Pendentes</div>
+      <div class="tab" data-tab="lancada" onclick="setTab('lancada')">Lançadas</div>
+      <div class="tab" data-tab="cancelada" onclick="setTab('cancelada')">Canceladas</div>
+      <div class="tab" data-tab="historico" onclick="setTab('historico')">Histórico</div>
+    </div>
+    <div id="listItems"></div>
+    <div id="historicoView" class="hidden">
+      <div class="subtabs" id="subtabsHistorico">
+        <div class="subtab active" data-grupo="aberto" onclick="setGrupoHistorico('aberto')">Sem aprovação</div>
+        <div class="subtab" data-grupo="aprovada_sem_cotacao" onclick="setGrupoHistorico('aprovada_sem_cotacao')">Aprovada</div>
+        <div class="subtab" data-grupo="em_cotacao" onclick="setGrupoHistorico('em_cotacao')">Em cotação</div>
+        <div class="subtab" data-grupo="cotacao_aprovada" onclick="setGrupoHistorico('cotacao_aprovada')">Cotação aprovada</div>
+        <div class="subtab" data-grupo="pedido_aberto" onclick="setGrupoHistorico('pedido_aberto')">Pedido aberto</div>
+        <div class="subtab" data-grupo="pedido_aprovado" onclick="setGrupoHistorico('pedido_aprovado')">Pedido aprovado</div>
+      </div>
+      <div class="card" style="padding:12px;">
+        <div style="display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap;">
+          <div style="flex:1; min-width:130px;">
+            <label style="margin:0 0 4px;">De</label>
+            <input type="date" id="histDataInicio">
+          </div>
+          <div style="flex:1; min-width:130px;">
+            <label style="margin:0 0 4px;">Até</label>
+            <input type="date" id="histDataFim">
+          </div>
+          <button class="btn-ghost btn-sm" style="height:43px;" onclick="carregarHistorico()">Filtrar</button>
+        </div>
+      </div>
+      <div id="historicoLista"></div>
+    </div>
+    <div id="adminView" class="hidden"></div>
+  </div>
+
+</div>
+
+<div class="fab hidden" id="fabAdd" onclick="openNovaSolicitacao()">+</div>
+
+<!-- MODAL NOVA SOLICITAÇÃO -->
+<div class="overlay" id="overlayNova" onclick="closeOverlayBg(event,'overlayNova')">
+  <div class="sheet">
+    <div class="sheet-header">
+      <h2>Nova solicitação</h2>
+      <button class="close-btn" onclick="closeOverlay('overlayNova')">✕</button>
+    </div>
+
+    <label>Filial</label>
+    <select id="novaFilial" onchange="onFilialChange()"></select>
+
+    <label>Setor</label>
+    <select id="novaSetor"></select>
+
+    <label>Observação (opcional)</label>
+    <textarea id="novaObs" rows="2" placeholder="Ex: compra urgente para colheita"></textarea>
+
+    <hr style="border:none; border-top:1px solid var(--border); margin:16px 0;">
+
+    <label>Adicionar item</label>
+    <div class="autocomplete-box">
+      <input id="buscaProduto" placeholder="Digite o nome do produto..." oninput="buscarProduto()" autocomplete="off">
+      <div id="sugestoes" class="suggestions hidden"></div>
+    </div>
+    <div id="produtoSelecionadoBox" class="hidden" style="margin-top:10px;">
+      <div class="muted" id="produtoSelecionadoLabel"></div>
+      <div style="display:flex; gap:8px; margin-top:8px;">
+        <div style="flex:1;">
+          <label>Quantidade</label>
+          <input id="itemQtd" type="number" min="0" step="0.01">
+        </div>
+        <div style="flex:1;">
+          <label>Unidade</label>
+          <input id="itemUnidade" readonly>
+        </div>
+      </div>
+      <label>Urgência</label>
+      <select id="itemUrgencia">
+        <option value="1">Baixa</option>
+        <option value="2" selected>Normal</option>
+        <option value="3">Alta</option>
+        <option value="4">Urgente</option>
+      </select>
+      <button class="btn-ghost btn-sm" style="margin-top:10px; width:100%;" onclick="adicionarItem()">Adicionar item à lista</button>
+    </div>
+
+    <div id="itensLista" style="margin-top:16px;"></div>
+
+    <button class="btn-primary" style="margin-top:16px;" onclick="enviarSolicitacao()">Enviar solicitação</button>
+  </div>
+</div>
+
+<!-- MODAL CONFIG RESPONSÁVEL (admin) -->
+<div class="overlay" id="overlayResp" onclick="closeOverlayBg(event,'overlayResp')">
+  <div class="sheet">
+    <div class="sheet-header">
+      <h2 id="respModalTitle">Responsável por Compras</h2>
+      <button class="close-btn" onclick="closeOverlay('overlayResp')">✕</button>
+    </div>
+    <p class="muted">Esse usuário recebe as solicitações dessa unidade via WhatsApp.</p>
+    <label>Usuário responsável</label>
+    <select id="respSelect"></select>
+    <button class="btn-primary" style="margin-top:16px;" onclick="salvarResponsavel()">Salvar</button>
+  </div>
+</div>
+
+<!-- MODAL DETALHE HISTÓRICO -->
+<div class="overlay" id="overlayHistDetalhe" onclick="closeOverlayBg(event,'overlayHistDetalhe')">
+  <div class="sheet">
+    <div class="sheet-header">
+      <div>
+        <h2 id="histDetalheTitulo" style="margin:0;"></h2>
+        <div class="muted" id="histDetalheSub"></div>
+      </div>
+      <button class="close-btn" onclick="closeOverlay('overlayHistDetalhe')">✕</button>
+    </div>
+    <div id="histDetalheTabela"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
 // ── CONFIG ────────────────────────────────────────────────
-const GSB_HOST  = "api-normalizada.gsbsoftware.com.br";
-const GSB_AUTH  = "Basic " + Buffer.from(
-  (process.env.GSB_USER || "hayashi") + ":" + (process.env.GSB_PASS || "cpjlk54*#spl89")
-).toString("base64");
-const GSB_CLI   = process.env.GSB_CLIENTE || "cf051147574882010032";
-const GSB_TOK   = process.env.GSB_TOKEN   || "$2a$10$BueYcMU8EZboMx3Fy12S8";
-const PORT      = process.env.PORT || 3000;
+const API = "https://compras-proxy-0m10.onrender.com";
 
-const SB_URL_RAW = process.env.SUPABASE_URL;
-const SB_KEY      = process.env.SUPABASE_KEY;
-if (!SB_URL_RAW || !SB_KEY) {
-  console.warn("ATENÇÃO: defina SUPABASE_URL e SUPABASE_KEY nas env vars do Render.");
+let token = localStorage.getItem("compras_token") || "";
+let currentUser = null;
+let currentTab = "pendente";
+let currentFilialSigla = null;
+let solicitacoes = [];
+let produtoSelecionado = null;
+let itensNovos = [];
+let cadastrosCache = { filiais: [], setores: [] };
+let adminUsuarios = [];
+let historicoDados = [];
+let currentGrupoHistorico = 'aberto';
+
+function showToast(msg, isError=false){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = 'toast' + (isError ? ' error' : '');
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 2500);
 }
-const SB_HOSTNAME = SB_URL_RAW ? SB_URL_RAW.replace(/^https?:\/\//, "").split("/")[0] : "";
 
-const FILIAIS_PERMITIDAS = ["HGO", "HBA"];
+async function api(path, opts={}){
+  opts.headers = Object.assign({ "Content-Type":"application/json" }, opts.headers || {});
+  if (token) opts.headers["Authorization"] = "Bearer " + token;
+  const res = await fetch(API + path, opts);
+  const data = await res.json().catch(()=>({}));
+  if (!res.ok) throw new Error(data.error || "Erro na requisição");
+  return data;
+}
 
-// ── SUPABASE REST HELPER ─────────────────────────────────────
-function sbReq(method, table, body, query) {
-  return new Promise((resolve, reject) => {
-    let path = `/rest/v1/${table}`;
-    if (query) path += `?${query}`;
-    const data = body ? JSON.stringify(body) : null;
-    const opts = {
-      hostname: SB_HOSTNAME,
-      path,
-      method,
-      headers: {
-        apikey: SB_KEY,
-        Authorization: `Bearer ${SB_KEY}`,
-        "Content-Type": "application/json",
-        Prefer: method === "POST" ? "return=representation" : "return=minimal",
-      },
-    };
-    if (data) opts.headers["Content-Length"] = Buffer.byteLength(data);
-    const req = https.request(opts, (res) => {
-      let chunks = "";
-      res.on("data", (c) => (chunks += c));
-      res.on("end", () => {
-        if (res.statusCode >= 400) return reject(new Error(`Supabase ${res.statusCode}: ${chunks}`));
-        try { resolve(chunks ? JSON.parse(chunks) : null); } catch { resolve(null); }
-      });
-    });
-    req.on("error", reject);
-    if (data) req.write(data);
-    req.end();
+function logout(){
+  localStorage.removeItem('compras_token');
+  location.reload();
+}
+
+async function init(){
+  if (!token){
+    document.getElementById('loginView').classList.remove('hidden');
+    const w = document.getElementById('loginWhats');
+    if (!w.value) w.value = '+55';
+    return;
+  }
+  try{
+    currentUser = await api('/me');
+    document.getElementById('userLabel').innerHTML = currentUser.nome + ' <button onclick="logout()">Sair</button>';
+    if (currentUser.admin) document.getElementById('btnAdminIcon').classList.remove('hidden');
+    await carregarCadastros();
+    document.getElementById('filialScreen').classList.remove('hidden');
+  }catch(e){
+    localStorage.removeItem('compras_token'); token = '';
+    document.getElementById('loginView').classList.remove('hidden');
+    const w = document.getElementById('loginWhats');
+    if (!w.value) w.value = '+55';
+  }
+}
+
+async function selecionarFilial(sigla){
+  currentFilialSigla = sigla;
+  document.getElementById('filialAtivaLabel').textContent = sigla === 'HGO' ? 'Goiás (HGO)' : 'Bahia (HBA)';
+  document.getElementById('filialScreen').classList.add('hidden');
+  document.getElementById('listView').classList.remove('hidden');
+  await carregarSolicitacoes();
+  setTab('pendente');
+}
+
+function trocarFilial(){
+  document.getElementById('listView').classList.add('hidden');
+  document.getElementById('filialScreen').classList.remove('hidden');
+}
+
+function mascararWhats(el){
+  let v = el.value.replace(/\D/g, '');
+  if (v.startsWith('55')) v = v.slice(2);
+  v = v.slice(0, 11); // DDD (2) + número (9)
+  let out = '+55';
+  if (v.length > 0) out += ' (' + v.slice(0, 2);
+  if (v.length >= 2) out += ') ';
+  if (v.length > 2) out += v.slice(2, v.length > 7 ? 7 : v.length);
+  if (v.length > 7) out += '-' + v.slice(7, 11);
+  el.value = out;
+}
+
+function abrirRegistro(){
+  document.getElementById('loginView').classList.add('hidden');
+  document.getElementById('registerView').classList.remove('hidden');
+  const w = document.getElementById('regWhats');
+  if (!w.value) w.value = '+55';
+}
+function fecharRegistro(){
+  document.getElementById('registerView').classList.add('hidden');
+  document.getElementById('loginView').classList.remove('hidden');
+}
+async function registrar(){
+  const nome = document.getElementById('regNome').value.trim();
+  const whatsapp = document.getElementById('regWhats').value.trim();
+  const senha = document.getElementById('regSenha').value;
+  const filial = document.getElementById('regFilial').value;
+  try{
+    await api('/registrar', { method:'POST', body: JSON.stringify({ nome, whatsapp, senha, filial }) });
+    showToast('Conta criada! Aguarde a aprovação de um administrador.');
+    fecharRegistro();
+  }catch(e){ showToast(e.message, true); }
+}
+
+async function login(){
+  const whatsapp = document.getElementById('loginWhats').value.trim();
+  const senha = document.getElementById('loginSenha').value;
+  try{
+    const data = await api('/login', { method:'POST', body: JSON.stringify({ whatsapp, senha }) });
+    token = data.token; localStorage.setItem('compras_token', token);
+    location.reload();
+  }catch(e){ showToast(e.message, true); }
+}
+
+async function carregarCadastros(){
+  try{
+    cadastrosCache.filiais = await api('/gsb/filiais');
+    const selF = document.getElementById('novaFilial');
+    selF.innerHTML = cadastrosCache.filiais.map(f=>`<option value="${f.idFilial}" data-sigla="${f.siglaFilial}">${f.nome} (${f.siglaFilial})</option>`).join('');
+    await onFilialChange();
+  }catch(e){ /* cadastros são opcionais para exibição */ }
+}
+
+async function onFilialChange(){
+  const selF = document.getElementById('novaFilial');
+  const idFilial = selF.value;
+  try{
+    const setores = await api('/gsb/setores?idFilial=' + encodeURIComponent(idFilial));
+    const selS = document.getElementById('novaSetor');
+    selS.innerHTML = setores.map(s=>`<option value="${s.idSetor}">${s.nomeSetor}</option>`).join('');
+  }catch(e){}
+}
+
+let filtroFuncionarioAtual = '';
+
+function onFiltroFuncionarioChange(){
+  filtroFuncionarioAtual = document.getElementById('filtroFuncionario').value;
+  if (currentTab === 'historico') renderHistorico();
+  else if (currentTab !== 'admin') render();
+}
+
+function atualizarListaFuncionarios(){
+  const nomes = new Set();
+  solicitacoes
+    .filter(s => s.filial_sigla ? s.filial_sigla === currentFilialSigla : (s.filial_nome || '').includes(currentFilialSigla))
+    .forEach(s => nomes.add(s.solicitante_nome));
+  historicoDados
+    .filter(s => !s.filialSigla || s.filialSigla === currentFilialSigla)
+    .forEach(s => { nomes.add(s.solicitante); nomes.add(s.comprador); nomes.add(s.responsavelPedido); });
+  const sel = document.getElementById('filtroFuncionario');
+  const valorAtual = sel.value;
+  sel.innerHTML = '<option value="">Todos</option>' + Array.from(nomes).filter(Boolean).sort().map(n=>`<option value="${n}">${n}</option>`).join('');
+  sel.value = Array.from(nomes).includes(valorAtual) ? valorAtual : '';
+  if (!Array.from(nomes).includes(valorAtual)) filtroFuncionarioAtual = '';
+}
+
+async function carregarSolicitacoes(){
+  try{
+    solicitacoes = await api('/solicitacoes');
+    atualizarListaFuncionarios();
+    render();
+  }catch(e){ showToast(e.message, true); }
+}
+
+function setGrupoHistorico(grupo){
+  currentGrupoHistorico = grupo;
+  document.querySelectorAll('#subtabsHistorico .subtab').forEach(t=>t.classList.toggle('active', t.dataset.grupo===grupo));
+  renderHistorico();
+}
+
+function inicializarDatasHistorico(){
+  const fimInput = document.getElementById('histDataFim');
+  const inicioInput = document.getElementById('histDataInicio');
+  if (!fimInput.value){
+    const hoje = new Date();
+    fimInput.value = hoje.toISOString().slice(0,10);
+  }
+  if (!inicioInput.value){
+    const noventa = new Date();
+    noventa.setDate(noventa.getDate() - 90);
+    inicioInput.value = noventa.toISOString().slice(0,10);
+  }
+}
+
+async function carregarHistorico(){
+  inicializarDatasHistorico();
+  const lista = document.getElementById('historicoLista');
+  lista.innerHTML = '<p class="muted" style="text-align:center; margin-top:20px;">Carregando...</p>';
+  try{
+    const inicio = document.getElementById('histDataInicio').value;
+    const fim = document.getElementById('histDataFim').value;
+    historicoDados = await api(`/gsb/historico-solicitacoes?inicio=${inicio}&fim=${fim}`);
+    atualizarListaFuncionarios();
+    renderHistorico();
+  }catch(e){ lista.innerHTML = `<p class="muted">Erro ao carregar histórico: ${e.message}</p>`; }
+}
+
+function renderHistorico(){
+  const lista = document.getElementById('historicoLista');
+  const filtrados = historicoDados.filter(s =>
+    (!s.filialSigla || s.filialSigla === currentFilialSigla) &&
+    s.grupo === currentGrupoHistorico &&
+    (!filtroFuncionarioAtual || [s.solicitante, s.comprador, s.responsavelPedido].includes(filtroFuncionarioAtual))
+  );
+  if (!filtrados.length){
+    lista.innerHTML = '<p class="muted" style="text-align:center; margin-top:40px;">Nenhuma solicitação nesse grupo.</p>';
+    return;
+  }
+  lista.innerHTML = filtrados.map(s=>{
+    const corClass = s.cor === 'verde' ? 'card-verde' : 'card-amarelo';
+    const fmtData = (d) => d ? new Date(d).toLocaleDateString('pt-BR') : null;
+
+    const linhaSolic = s.numeroSolicitacao
+      ? `Nº Solicitação ${s.numeroSolicitacao} · ${fmtData(s.dataSolicitacao) || '—'} · ${s.solicitante || '—'}`
+      : null;
+    const linhaCota = s.numeroCotacao
+      ? `Nº Cotação ${s.numeroCotacao} · ${fmtData(s.dataCotacao) || '—'} · ${s.comprador || '—'}`
+      : null;
+    const linhaPedido = s.numeroPedido
+      ? `Nº Pedido ${s.numeroPedido} · ${fmtData(s.dataPedido) || '—'} · ${s.responsavelPedido || '—'}${s.fornecedorPedido ? ' · Fornecedor: ' + s.fornecedorPedido : ''}`
+      : null;
+
+    const titulo = linhaSolic ? `Solicitação` : (linhaCota ? 'Cotação avulsa' : 'Pedido avulso');
+    const linhas = [linhaSolic, linhaCota, linhaPedido].filter(Boolean)
+      .map(l => `<div class="muted" style="margin-top:2px;">${l}</div>`).join('');
+
+    return `
+      <div class="card ${corClass}" style="cursor:pointer;" onclick="abrirDetalheHistorico('${s.idSolicitacaoCompra}')">
+        <div class="top-row">
+          <div>
+            <strong>${titulo}</strong>
+            ${linhas}
+          </div>
+          <span class="muted">${s.itens.length} ${s.itens.length===1?'item':'itens'} ›</span>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function abrirDetalheHistorico(id){
+  const s = historicoDados.find(x => String(x.idSolicitacaoCompra) === String(id));
+  if (!s) return;
+  const fmtData = (d) => d ? new Date(d).toLocaleDateString('pt-BR') : null;
+  const linhaSolic = s.numeroSolicitacao
+    ? `Nº Solicitação ${s.numeroSolicitacao} · ${fmtData(s.dataSolicitacao) || '—'} · ${s.solicitante || '—'}`
+    : null;
+  const linhaCota = s.numeroCotacao
+    ? `Nº Cotação ${s.numeroCotacao} · ${fmtData(s.dataCotacao) || '—'} · ${s.comprador || '—'}`
+    : null;
+  const linhaPedido = s.numeroPedido
+    ? `Nº Pedido ${s.numeroPedido} · ${fmtData(s.dataPedido) || '—'} · ${s.responsavelPedido || '—'}${s.fornecedorPedido ? ' · Fornecedor: ' + s.fornecedorPedido : ''}`
+    : null;
+  const titulo = linhaSolic ? `Solicitação` : (linhaCota ? 'Cotação avulsa' : 'Pedido avulso');
+  document.getElementById('histDetalheTitulo').textContent = titulo;
+  document.getElementById('histDetalheSub').innerHTML = [linhaSolic, linhaCota, linhaPedido].filter(Boolean)
+    .map(l => `<div>${l}</div>`).join('');
+  const temPreco = s.itens.some(it => it.valorUnitario != null);
+  function formatarMoeda(v){
+    return v == null ? '—' : Number(v).toLocaleString('pt-BR', { style:'currency', currency:'BRL' });
+  }
+  const linhas = s.itens.map(it => `
+    <tr>
+      <td>${it.quantidade}</td>
+      <td>${it.unidade || '—'}</td>
+      <td>${it.produto}</td>
+      ${temPreco ? `<td>${formatarMoeda(it.valorUnitario)}</td><td>${formatarMoeda(it.valorTotal)}</td>` : ''}
+    </tr>`).join('');
+  document.getElementById('histDetalheTabela').innerHTML = `
+    <table style="width:100%; border-collapse:collapse; font-size:14px;">
+      <thead>
+        <tr style="text-align:left; color:var(--muted); font-size:12px;">
+          <th style="padding:6px 4px;">Qtd.</th>
+          <th style="padding:6px 4px;">Unid.</th>
+          <th style="padding:6px 4px;">Produto</th>
+          ${temPreco ? `<th style="padding:6px 4px;">Preço Unit.</th><th style="padding:6px 4px;">Total</th>` : ''}
+        </tr>
+      </thead>
+      <tbody>${linhas}</tbody>
+    </table>`;
+  document.getElementById('overlayHistDetalhe').classList.add('open');
+}
+
+function setTab(tab){
+  currentTab = tab;
+  document.querySelectorAll('#tabsMain .tab').forEach(t=>t.classList.toggle('active', t.dataset.tab===tab));
+  document.getElementById('listItems').classList.toggle('hidden', tab === 'admin' || tab === 'historico');
+  document.getElementById('historicoView').classList.toggle('hidden', tab !== 'historico');
+  document.getElementById('adminView').classList.toggle('hidden', tab !== 'admin');
+  document.getElementById('fabAdd').classList.toggle('hidden', tab === 'admin' || tab === 'historico');
+  if (tab === 'admin') carregarAdmin();
+  else if (tab === 'historico') carregarHistorico();
+  else render();
+}
+
+function render(){
+  const statusMap = { pendente:'pendente', lancada:'lançada', cancelada:'cancelada' };
+  const filtradas = solicitacoes.filter(s=>{
+    const statusOk = s.status === statusMap[currentTab];
+    const filialOk = s.filial_sigla
+      ? s.filial_sigla === currentFilialSigla
+      : (s.filial_nome || '').includes(currentFilialSigla); // fallback p/ registros antigos sem filial_sigla
+    const funcOk = !filtroFuncionarioAtual || s.solicitante_nome === filtroFuncionarioAtual;
+    return statusOk && filialOk && funcOk;
   });
+  const container = document.getElementById('listItems');
+  if (!filtradas.length){
+    container.innerHTML = `<p class="muted" style="text-align:center; margin-top:40px;">Nenhuma solicitação aqui.</p>`;
+    return;
+  }
+  container.innerHTML = filtradas.map(s=>{
+    const dt = new Date(s.data_solicitacao).toLocaleDateString('pt-BR');
+    const badgeClass = s.status === 'lançada' ? 'lancada' : (s.status === 'cancelada' ? 'cancelada' : 'pendente');
+    const itensHtml = (s.itens||[]).map(it=>`
+      <div class="item-row">
+        <span>${it.descricao_produto} ${it.unidade?('('+it.unidade+')'):''}</span>
+        <span>${it.quantidade} · ${it.urgencia_nome}</span>
+      </div>`).join('');
+    const acoes = currentUser.admin && s.status === 'pendente'
+      ? `<div style="display:flex; gap:8px; margin-top:10px;">
+           <button class="btn-ghost btn-sm" onclick="marcarLancada(${s.id})">Marcar como lançada</button>
+           <button class="btn-danger btn-sm" onclick="cancelar(${s.id})">Cancelar</button>
+         </div>`
+      : (s.status === 'pendente' ? `<div style="margin-top:10px;"><button class="btn-danger btn-sm" onclick="cancelar(${s.id})">Cancelar</button></div>` : '');
+    return `
+      <div class="card">
+        <div class="top-row">
+          <div>
+            <strong>${s.filial_nome || ('Filial '+s.id_filial)}</strong>
+            <div class="muted">${s.setor_nome || ''} · ${dt}</div>
+          </div>
+          <span class="badge ${badgeClass}">${s.status}</span>
+        </div>
+        <div class="muted">Solicitante: ${s.solicitante_nome}</div>
+        ${s.obs ? `<div style="margin-top:6px; font-size:14px;">${s.obs}</div>` : ''}
+        <div style="margin-top:10px;">${itensHtml}</div>
+        ${acoes}
+      </div>`;
+  }).join('');
 }
-const sbGet    = (table, query) => sbReq("GET", table, null, query);
-const sbInsert = (table, body)  => sbReq("POST", table, body);
-const sbPatch  = (table, body, query) => sbReq("PATCH", table, body, query);
-const sbDelete = (table, query) => sbReq("DELETE", table, null, query);
 
-// ── AUTH / SESSÃO ─────────────────────────────────────────
-function sha256(s) { return crypto.createHash("sha256").update(s + "gsb2026").digest("hex"); }
-function limparWhats(w) { return (w || "").replace(/\D/g, ""); }
-
-async function getSession(req) {
-  const authH = req.headers["authorization"] || "";
-  const token = authH.startsWith("Bearer ") ? authH.slice(7) : null;
-  if (!token) return null;
-  const rows = await sbGet("sessoes", `token=eq.${token}&select=*,usuarios(*)`);
-  if (!rows || !rows[0]) return null;
-  const sess = rows[0];
-  if (new Date(sess.expira_em) < new Date()) return null;
-  return sess.usuarios;
+async function marcarLancada(id){
+  const numero = prompt('Número da solicitação no GSB (opcional):');
+  try{
+    await api(`/solicitacoes/${id}`, { method:'PUT', body: JSON.stringify({ status:'lançada', id_comprador: currentUser.id, numero_solicitacao_gsb: numero || null }) });
+    showToast('Marcada como lançada');
+    await carregarSolicitacoes();
+  }catch(e){ showToast(e.message, true); }
 }
 
-// ── GSB (GET only) ─────────────────────────────────────────
-function gsbGet(nome) {
-  return gsbFetch(`/${nome}/${GSB_CLI}/${encodeURIComponent(GSB_TOK)}`);
+async function cancelar(id){
+  if (!confirm('Cancelar esta solicitação?')) return;
+  try{
+    await api(`/solicitacoes/${id}`, { method:'PUT', body: JSON.stringify({ status:'cancelada' }) });
+    showToast('Cancelada');
+    await carregarSolicitacoes();
+  }catch(e){ showToast(e.message, true); }
 }
-function gsbGetRange(nome, dataInicio, dataFim) {
-  return gsbFetch(`/${nome}/${dataInicio}/${dataFim}/${GSB_CLI}/${encodeURIComponent(GSB_TOK)}`);
+
+// ── NOVA SOLICITAÇÃO ──────────────────────────────────────
+function openNovaSolicitacao(){
+  itensNovos = []; produtoSelecionado = null;
+  document.getElementById('itensLista').innerHTML = '';
+  document.getElementById('novaObs').value = '';
+  document.getElementById('buscaProduto').value = '';
+  document.getElementById('produtoSelecionadoBox').classList.add('hidden');
+  const selF = document.getElementById('novaFilial');
+  const opt = Array.from(selF.options).find(o => o.dataset.sigla === currentFilialSigla);
+  if (opt) { selF.value = opt.value; onFilialChange(); }
+  document.getElementById('overlayNova').classList.add('open');
 }
-function gsbFetch(gsbPath) {
-  return new Promise((resolve, reject) => {
-    const req = https.request(
-      { hostname: GSB_HOST, path: gsbPath, method: "GET", headers: { Authorization: GSB_AUTH } },
-      (res) => {
-        let chunks = "";
-        res.on("data", (c) => (chunks += c));
-        res.on("end", () => {
-          try { resolve(JSON.parse(chunks)); } catch (e) { reject(e); }
-        });
-      }
-    );
-    req.on("error", reject);
-    req.end();
+function closeOverlay(id){ document.getElementById(id).classList.remove('open'); }
+function closeOverlayBg(e, id){ if (e.target === document.getElementById(id)) closeOverlay(id); }
+
+let buscaTimeout;
+function buscarProduto(){
+  clearTimeout(buscaTimeout);
+  const q = document.getElementById('buscaProduto').value.trim();
+  const box = document.getElementById('sugestoes');
+  if (q.length < 2){ box.classList.add('hidden'); return; }
+  buscaTimeout = setTimeout(async ()=>{
+    try{
+      const resultados = await api('/gsb/produtos-busca?q=' + encodeURIComponent(q));
+      if (!resultados.length){ box.classList.add('hidden'); return; }
+      box.innerHTML = resultados.map(p=>`<div class="suggestion" onclick='selecionarProduto(${JSON.stringify(p).replace(/'/g,"&#39;")})'><span>${p.nome}</span><span class="unid">${p.unidade||''}</span></div>`).join('');
+      box.classList.remove('hidden');
+    }catch(e){ box.classList.add('hidden'); }
+  }, 250);
+}
+function selecionarProduto(p){
+  produtoSelecionado = p;
+  document.getElementById('buscaProduto').value = p.nome;
+  document.getElementById('sugestoes').classList.add('hidden');
+  document.getElementById('produtoSelecionadoLabel').textContent = 'Selecionado: ' + p.nome;
+  document.getElementById('itemUnidade').value = p.unidade || '—';
+  document.getElementById('produtoSelecionadoBox').classList.remove('hidden');
+}
+function adicionarItem(){
+  const qtd = parseFloat(document.getElementById('itemQtd').value);
+  if (!produtoSelecionado){ showToast('Busque e selecione um produto', true); return; }
+  if (!qtd || qtd <= 0){ showToast('Informe a quantidade', true); return; }
+  const urgSel = document.getElementById('itemUrgencia');
+  itensNovos.push({
+    idProduto: produtoSelecionado.idProduto,
+    descricaoProduto: produtoSelecionado.nome,
+    quantidade: qtd,
+    unidade: produtoSelecionado.unidade || '',
+    idUrgencia: urgSel.value,
+    urgenciaNome: urgSel.options[urgSel.selectedIndex].text,
   });
+  renderItensNovos();
+  produtoSelecionado = null;
+  document.getElementById('buscaProduto').value = '';
+  document.getElementById('itemQtd').value = '';
+  document.getElementById('produtoSelecionadoBox').classList.add('hidden');
 }
-function formatarDataGSB(d) {
-  const dd = String(d.getDate()).padStart(2, "0");
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  return `${dd}${mm}${d.getFullYear()}`;
+function renderItensNovos(){
+  document.getElementById('itensLista').innerHTML = itensNovos.map((it,i)=>`
+    <div class="item-added">
+      <span>${it.descricaoProduto} — ${it.quantidade}${it.unidade?(' '+it.unidade):''} (${it.urgenciaNome})</span>
+      <button onclick="removerItem(${i})">✕</button>
+    </div>`).join('');
+}
+function removerItem(i){ itensNovos.splice(i,1); renderItensNovos(); }
+
+async function enviarSolicitacao(){
+  if (!itensNovos.length){ showToast('Adicione ao menos um item', true); return; }
+  const filialSel = document.getElementById('novaFilial');
+  const setorSel = document.getElementById('novaSetor');
+  const filialNome = filialSel.options[filialSel.selectedIndex]?.text || '';
+  const filialSigla = filialSel.options[filialSel.selectedIndex]?.dataset.sigla || '';
+  const setorNome = setorSel.options[setorSel.selectedIndex]?.text || '';
+  const obs = document.getElementById('novaObs').value.trim();
+  const body = {
+    id_filial: filialSel.value,
+    filial_nome: filialNome,
+    filial_sigla: filialSigla,
+    id_setor: setorSel.value,
+    setor_nome: setorNome,
+    obs,
+    itens: itensNovos,
+  };
+  try{
+    await api('/solicitacoes', { method:'POST', body: JSON.stringify(body) });
+    showToast('Solicitação enviada!');
+    closeOverlay('overlayNova');
+    await carregarSolicitacoes();
+    await enviarWhatsappResponsavel({ filialNome, filialSigla, setorNome, obs, itens: itensNovos });
+  }catch(e){ showToast(e.message, true); }
 }
 
-// ── CACHE "QUENTE" DOS CADASTROS ──────────────────────────
-// Carrega uma vez no início e atualiza em segundo plano — as buscas do usuário
-// nunca esperam o GSB responder, só leem o que já está em memória.
-let CACHE = {
-  produtos: [],       // [{idProduto, nome: "NOMEPRODUTO-VARIEDADE", unidade, idUnidade}]
-  filiais: [],        // já filtradas para HGO/HBA
-  setores: [],
-  atualizadoEm: null,
-  atualizando: false,
-};
+async function enviarWhatsappResponsavel({ filialNome, filialSigla, setorNome, obs, itens }){
+  try{
+    const resp = await api('/config/responsavel?filial=' + encodeURIComponent(filialSigla));
+    if (!resp || !resp.whatsapp){
+      showToast('Nenhum responsável configurado para ' + filialSigla + ' (peça ao admin para configurar)', true);
+      return;
+    }
+    const hoje = new Date().toLocaleDateString('pt-BR');
+    const itensTxt = itens.map(it => `• ${it.descricaoProduto} — ${it.quantidade}${it.unidade?(' '+it.unidade):''} (${it.urgenciaNome})`).join('\n');
+    const msg = `🛒 *NOVA SOLICITAÇÃO DE COMPRA*\n\n📅 *Data:* ${hoje}\n🏢 *Filial:* ${filialNome}\n🏗️ *Setor:* ${setorNome}\n👤 *Solicitante:* ${currentUser.nome}\n\n📦 *Itens:*\n${itensTxt}${obs ? `\n\n📝 *Observação:*\n${obs}` : ''}\n\n_Favor lançar no sistema GSB._`;
+    const whats = resp.whatsapp.replace(/\D/g,'');
+    window.location.href = `https://wa.me/${whats}?text=${encodeURIComponent(msg)}`;
+  }catch(e){ /* não bloqueia o fluxo se o whatsapp falhar */ }
+}
 
-async function atualizarCache() {
-  if (CACHE.atualizando) return;
-  CACHE.atualizando = true;
-  try {
-    const [produtos, nomes, variedades, unidades, filiais, setores] = await Promise.all([
-      gsbGet("produtos"),
-      gsbGet("produtosnomes"),
-      gsbGet("produtosvariedades"),
-      gsbGet("unidades"),
-      gsbGet("filiais"),
-      gsbGet("setores"),
+// ── ADMIN ─────────────────────────────────────────────────
+async function carregarAdmin(){
+  const container = document.getElementById('adminView');
+  container.innerHTML = '<p class="muted">Carregando...</p>';
+  try{
+    const [usuarios, respHGO, respHBA] = await Promise.all([
+      api('/admin/usuarios'),
+      api('/config/responsavel?filial=HGO'),
+      api('/config/responsavel?filial=HBA'),
     ]);
+    adminUsuarios = usuarios;
 
-    const nomeMap = new Map((nomes || []).map((n) => [String(n.idNomeProduto), n.nomeProduto]));
-    const varMap = new Map((variedades || []).map((v) => [String(v.idVariedade), v.nomeVariedade]));
-    const unidMap = new Map((unidades || []).map((u) => [String(u.idUnidade), u.siglaUnidade || u.nomeUnidade]));
+    const respHtml = `
+      <div class="card">
+        <div class="top-row">
+          <strong>Responsável — Goiás (HGO)</strong>
+          <button class="btn-ghost btn-sm" onclick="abrirConfigResponsavel('HGO')">Alterar</button>
+        </div>
+        <div class="muted">${respHGO ? (respHGO.nome + ' · ' + respHGO.whatsapp) : 'Nenhum responsável configurado'}</div>
+      </div>
+      <div class="card">
+        <div class="top-row">
+          <strong>Responsável — Bahia (HBA)</strong>
+          <button class="btn-ghost btn-sm" onclick="abrirConfigResponsavel('HBA')">Alterar</button>
+        </div>
+        <div class="muted">${respHBA ? (respHBA.nome + ' · ' + respHBA.whatsapp) : 'Nenhum responsável configurado'}</div>
+      </div>`;
 
-    CACHE.produtos = (produtos || []).map((p) => {
-      const nomeBase = nomeMap.get(String(p.idNomeProduto)) || `Produto ${p.idProduto}`;
-      const variedade = p.idVariedade ? varMap.get(String(p.idVariedade)) : null;
-      const nomeCompleto = variedade ? `${nomeBase}-${variedade}` : nomeBase;
-      return {
-        idProduto: p.idProduto,
-        nome: nomeCompleto,
-        idUnidade: p.idUnidade,
-        unidade: unidMap.get(String(p.idUnidade)) || "",
-      };
-    });
+    const usuariosHtml = usuarios.map(u => `
+      <div class="admin-user">
+        <div style="flex:1;">
+          <div><strong>${u.nome}</strong> ${u.admin ? '👑' : ''}</div>
+          <div class="muted">${u.whatsapp} · ${u.filial || 'Sem filial'} · <span class="badge ${u.status==='aprovado'?'aprovado':u.status==='bloqueado'?'bloqueado':'pendente'}">${u.status}</span></div>
+          <div class="admin-user-actions">
+            ${u.status!=='aprovado' ? `<button class="btn-ghost btn-sm" onclick="adminAcao(${u.id},{status:'aprovado'})">✓ Aprovar</button>` : ''}
+            ${u.status!=='bloqueado' ? `<button class="btn-danger btn-sm" onclick="adminAcao(${u.id},{status:'bloqueado'})">Bloquear</button>` : ''}
+            ${!u.admin ? `<button class="btn-ghost btn-sm" onclick="adminAcao(${u.id},{admin:true})">👑 Tornar admin</button>` : ''}
+            ${!u.admin ? `<button class="btn-danger btn-sm" onclick="adminExcluir(${u.id},'${u.nome.replace(/'/g,"\\'")}')">🗑 Excluir</button>` : ''}
+          </div>
+        </div>
+      </div>`).join('');
 
-    CACHE.filiais = (filiais || []).filter((f) => FILIAIS_PERMITIDAS.includes((f.siglaFilial || "").toUpperCase()));
-    CACHE.setores = setores || [];
-    CACHE.atualizadoEm = new Date().toISOString();
-    console.log(`Cache atualizado: ${CACHE.produtos.length} produtos, ${CACHE.filiais.length} filiais, ${CACHE.setores.length} setores`);
-  } catch (e) {
-    console.error("Erro ao atualizar cache do GSB:", e.message);
-  } finally {
-    CACHE.atualizando = false;
-  }
+    container.innerHTML = respHtml + `<div class="card">${usuariosHtml}</div>`;
+  }catch(e){ container.innerHTML = `<p class="muted">Erro ao carregar: ${e.message}</p>`; }
 }
 
-(async () => {
-  await atualizarCache();       // produtos/filiais/setores primeiro
-  await atualizarHistorico();   // depois o histórico, já usando os produtos em cache
-})();
-setInterval(atualizarCache, 6 * 60 * 60 * 1000);       // atualiza a cada 6 horas
-setInterval(atualizarHistorico, 30 * 60 * 1000);       // atualiza a cada 30 min
-
-// ── HISTÓRICO DE SOLICITAÇÕES (direto do GSB) ──
-let HIST_CACHE = { data: [], atualizadoEm: null, atualizando: false };
-
-async function buscarHistorico(dataInicio, dataFim) {
-  const [headers, itens, funcionarios, filiais, cotacoes, cotacoesListas, pedidos, pedidosItens, unidadesFaturamentos, fichas] = await Promise.all([
-    gsbGetRange("solicitacoescompras", dataInicio, dataFim),
-    gsbGetRange("solicitacoescomprasitens", dataInicio, dataFim),
-    gsbGet("funcionarios"),
-    gsbGet("filiais"),
-    gsbGetRange("cotacoes", dataInicio, dataFim),
-    gsbGetRange("cotacoeslistas", dataInicio, dataFim),
-    gsbGetRange("pedidoscompras", dataInicio, dataFim),
-    gsbGetRange("pedidoscomprasitens", dataInicio, dataFim),
-    gsbGet("unidadesfaturamentos"),
-    gsbGet("fichas"),
-  ]);
-
-  const funcMap = new Map((funcionarios || []).map((f) => [String(f.idFuncionario), f.nome]));
-  const filialMap = new Map((filiais || []).map((f) => [String(f.idFilial), f.siglaFilial]));
-  const produtoMap = new Map(CACHE.produtos.map((p) => [String(p.idProduto), p]));
-  const cotacaoStatusMap = new Map((cotacoes || []).map((c) => [String(c.idCotacao), c.status]));
-  const cotacaoInfoMap = new Map((cotacoes || []).map((c) => [String(c.idCotacao), {
-    numero: c.numeroCotacao,
-    data: c.dataCotacao,
-    pessoa: funcMap.get(String(c.idFuncionarioCotador)) || funcMap.get(String(c.idFuncionarioResponsavel)) || null,
-  }]));
-  const pedidoStatusMap = new Map((pedidos || []).map((p) => [String(p.idPedidoCompra), p.statusPedido]));
-
-  // idUnidadeFaturamento -> idFicha (fornecedor)
-  const unidadeFaturamentoParaFicha = new Map((unidadesFaturamentos || []).map((u) => [String(u.idUnidadeFaturamento), u.idFicha]));
-  const fichaNomeMap = new Map((fichas || []).map((f) => [String(f.idFicha), f.razao]));
-  function fornecedorDoPedido(p) {
-    if (!p.idUnidadeFaturamento) return null;
-    const idFicha = unidadeFaturamentoParaFicha.get(String(p.idUnidadeFaturamento));
-    return idFicha ? fichaNomeMap.get(String(idFicha)) || null : null;
-  }
-
-  const pedidoInfoMap = new Map((pedidos || []).map((p) => [String(p.idPedidoCompra), {
-    numero: p.numeroPedido,
-    data: p.dataPedido,
-    pessoa: funcMap.get(String(p.idFuncionarioResponsavel)) || funcMap.get(String(p.idFuncionarioComprador)) || null,
-    fornecedor: fornecedorDoPedido(p),
-  }]));
-  const clParaCotacao = new Map((cotacoesListas || []).map((cl) => [String(cl.idCotacaoLista), cl.idCotacao]));
-
-  // idSolicitacaoCompraItem -> {idCotacao, status}
-  const itemParaCotacao = new Map();
-  (cotacoesListas || []).forEach((cl) => {
-    if (!cl.idSolicitacaoCompraItem) return;
-    itemParaCotacao.set(String(cl.idSolicitacaoCompraItem), {
-      idCotacao: cl.idCotacao,
-      status: cotacaoStatusMap.get(String(cl.idCotacao)) || null,
-    });
-  });
-
-  // idSolicitacaoCompraItem -> {idPedidoCompra, status, valorUnitario, valorTotal}
-  const itemParaPedido = new Map();
-  (pedidosItens || []).forEach((pi) => {
-    if (!pi.idSolicitacaoCompraItem) return;
-    itemParaPedido.set(String(pi.idSolicitacaoCompraItem), {
-      idPedidoCompra: pi.idPedidoCompra,
-      status: pedidoStatusMap.get(String(pi.idPedidoCompra)) || null,
-      valorUnitario: pi.valorUnitario,
-      valorTotal: pi.valorProduto,
-    });
-  });
-
-  const itensPorSolic = {};
-  (itens || []).forEach((it) => {
-    const st = (it.status || "").toLowerCase();
-    const aprovado = st.startsWith("aprovad");
-    const aguardando = st.includes("aguardando");
-    if (!aprovado && !aguardando) return;
-    const prod = produtoMap.get(String(it.idProduto));
-    const cot = itemParaCotacao.get(String(it.idSolicitacaoCompraItem)) || null;
-    const ped = itemParaPedido.get(String(it.idSolicitacaoCompraItem)) || null;
-    const lista = (itensPorSolic[it.idSolicitacaoCompra] = itensPorSolic[it.idSolicitacaoCompra] || []);
-    lista.push({
-      produto: (prod && prod.nome) || it.descricaoProduto,
-      unidade: (prod && prod.unidade) || "",
-      quantidade: aprovado ? (it.quantidadeAprovada || it.quantidade) : it.quantidade,
-      status: it.status,
-      idCotacao: cot ? cot.idCotacao : null,
-      cotacaoStatus: cot ? cot.status : null,
-      idPedidoCompra: ped ? ped.idPedidoCompra : null,
-      pedidoStatus: ped ? ped.status : null,
-      valorUnitario: ped ? ped.valorUnitario : null,
-      valorTotal: ped ? ped.valorTotal : null,
-    });
-  });
-
-  function classificar(itensDaSolic) {
-    const temPedidoAprovado = itensDaSolic.some((it) => it.pedidoStatus && it.pedidoStatus.toLowerCase().startsWith("aprovad"));
-    if (temPedidoAprovado) return "pedido_aprovado";
-    const temPedido = itensDaSolic.some((it) => it.idPedidoCompra);
-    if (temPedido) return "pedido_aberto";
-    const temCotacaoAprovada = itensDaSolic.some((it) => it.cotacaoStatus && it.cotacaoStatus.toLowerCase().startsWith("aprovad"));
-    if (temCotacaoAprovada) return "cotacao_aprovada";
-    const temCotacao = itensDaSolic.some((it) => it.idCotacao);
-    if (temCotacao) return "em_cotacao";
-    // sem cotação nem pedido ainda: separa quem já foi aprovado de quem ainda aguarda aprovação
-    const todosAprovados = itensDaSolic.every((it) => (it.status || "").toLowerCase().startsWith("aprovad"));
-    return todosAprovados ? "aprovada_sem_cotacao" : "aberto";
-  }
-  function corDoGrupo(grupo) {
-    if (["pedido_aprovado", "cotacao_aprovada", "aprovada_sem_cotacao"].includes(grupo)) return "verde";
-    return "amarelo";
-  }
-
-  const listaSolicitacoes = (headers || [])
-    .filter((h) => itensPorSolic[h.idSolicitacaoCompra])
-    .map((h) => {
-      const itensDaSolic = itensPorSolic[h.idSolicitacaoCompra];
-      const grupo = classificar(itensDaSolic);
-      const idCotacaoAchado = itensDaSolic.map((it) => it.idCotacao).find(Boolean) || null;
-      const idPedidoAchado = itensDaSolic.map((it) => it.idPedidoCompra).find(Boolean) || null;
-      const cotInfo = idCotacaoAchado ? cotacaoInfoMap.get(String(idCotacaoAchado)) : null;
-      const pedInfo = idPedidoAchado ? pedidoInfoMap.get(String(idPedidoAchado)) : null;
-      return {
-        idSolicitacaoCompra: h.idSolicitacaoCompra,
-        numeroSolicitacao: h.numeroSolicitacao,
-        dataSolicitacao: h.dataSolicitacao,
-        solicitante: funcMap.get(String(h.idSolicitante)) || `Func. ${h.idSolicitante}`,
-        filialSigla: filialMap.get(String(h.idFilial)) || null,
-        itens: itensDaSolic,
-        grupo,
-        cor: corDoGrupo(grupo),
-        numeroCotacao: cotInfo ? cotInfo.numero : null,
-        dataCotacao: cotInfo ? cotInfo.data : null,
-        comprador: cotInfo ? cotInfo.pessoa : null,
-        numeroPedido: pedInfo ? pedInfo.numero : null,
-        dataPedido: pedInfo ? pedInfo.data : null,
-        responsavelPedido: pedInfo ? pedInfo.pessoa : null,
-        fornecedorPedido: pedInfo ? pedInfo.fornecedor : null,
-        avulso: false,
-      };
-    });
-
-  // ── Pedidos lançados direto no GSB, sem passar por solicitação/cotação ──
-  const itensPorPedido = {};
-  (pedidosItens || []).forEach((pi) => {
-    (itensPorPedido[pi.idPedidoCompra] = itensPorPedido[pi.idPedidoCompra] || []).push(pi);
-  });
-
-  const pedidosAvulsos = (pedidos || [])
-    .filter((p) => {
-      const itensDoPedido = itensPorPedido[p.idPedidoCompra] || [];
-      return itensDoPedido.length > 0 && itensDoPedido.every((pi) => !pi.idSolicitacaoCompraItem);
-    })
-    .map((p) => {
-      const itensDoPedido = itensPorPedido[p.idPedidoCompra];
-      const itensFormatados = itensDoPedido.map((pi) => {
-        const prod = produtoMap.get(String(pi.idProduto));
-        return {
-          produto: (prod && prod.nome) || `Produto ${pi.idProduto}`,
-          unidade: (prod && prod.unidade) || "",
-          quantidade: pi.quantidade,
-          valorUnitario: pi.valorUnitario,
-          valorTotal: pi.valorProduto,
-        };
-      });
-      const statusAprovado = (p.statusPedido || "").toLowerCase().startsWith("aprovad");
-      // se algum item veio de uma cotação (mesmo sem solicitação), resgata os dados da cotação também
-      const idCotacaoOrigem = itensDoPedido.map((pi) => pi.idCotacaoLista && clParaCotacao.get(String(pi.idCotacaoLista))).find(Boolean) || null;
-      const cotInfo = idCotacaoOrigem ? cotacaoInfoMap.get(String(idCotacaoOrigem)) : null;
-      return {
-        idSolicitacaoCompra: `pedido-${p.idPedidoCompra}`,
-        numeroSolicitacao: null,
-        dataSolicitacao: null,
-        solicitante: null,
-        filialSigla: filialMap.get(String(p.idFilial)) || null,
-        itens: itensFormatados,
-        grupo: statusAprovado ? "pedido_aprovado" : "pedido_aberto",
-        cor: statusAprovado ? "verde" : "amarelo",
-        numeroCotacao: cotInfo ? cotInfo.numero : null,
-        dataCotacao: cotInfo ? cotInfo.data : null,
-        comprador: cotInfo ? cotInfo.pessoa : null,
-        numeroPedido: p.numeroPedido,
-        dataPedido: p.dataPedido,
-        responsavelPedido: funcMap.get(String(p.idFuncionarioResponsavel)) || funcMap.get(String(p.idFuncionarioComprador)) || null,
-        fornecedorPedido: fornecedorDoPedido(p),
-        avulso: true,
-      };
-    });
-
-  // ── Cotações criadas direto no GSB, sem vir de uma solicitação ──
-  const itensPorCotacaoAvulsa = {};
-  (cotacoesListas || []).forEach((cl) => {
-    if (cl.idSolicitacaoCompraItem) return; // já tratado dentro da solicitação
-    const prod = produtoMap.get(String(cl.idProduto));
-    const lista = (itensPorCotacaoAvulsa[cl.idCotacao] = itensPorCotacaoAvulsa[cl.idCotacao] || []);
-    lista.push({
-      produto: (prod && prod.nome) || `Produto ${cl.idProduto}`,
-      unidade: (prod && prod.unidade) || "",
-      quantidade: cl.quantidade,
-      idCotacaoLista: cl.idCotacaoLista,
-    });
-  });
-
-  // idCotacaoLista que já virou item de pedido avulso — evita duplicar o mesmo item em dois cards
-  const cotacaoListaJaVirouPedidoAvulso = new Set();
-  (pedidosItens || []).forEach((pi) => {
-    if (!pi.idSolicitacaoCompraItem && pi.idCotacaoLista) cotacaoListaJaVirouPedidoAvulso.add(String(pi.idCotacaoLista));
-  });
-
-  const cotacoesAvulsas = (cotacoes || [])
-    .map((c) => {
-      const itensBrutos = itensPorCotacaoAvulsa[c.idCotacao] || [];
-      const itensRestantes = itensBrutos.filter((it) => !cotacaoListaJaVirouPedidoAvulso.has(String(it.idCotacaoLista)));
-      return { c, itensRestantes };
-    })
-    .filter(({ itensRestantes }) => itensRestantes.length > 0)
-    .map(({ c, itensRestantes }) => {
-      const statusAprovado = (c.status || "").toLowerCase().startsWith("aprovad");
-      return {
-        idSolicitacaoCompra: `cotacao-${c.idCotacao}`,
-        numeroSolicitacao: null,
-        dataSolicitacao: null,
-        solicitante: null,
-        filialSigla: filialMap.get(String(c.idFilial)) || null,
-        itens: itensRestantes,
-        grupo: statusAprovado ? "cotacao_aprovada" : "em_cotacao",
-        cor: statusAprovado ? "verde" : "amarelo",
-        numeroCotacao: c.numeroCotacao,
-        dataCotacao: c.dataCotacao,
-        comprador: funcMap.get(String(c.idFuncionarioCotador)) || funcMap.get(String(c.idFuncionarioResponsavel)) || null,
-        numeroPedido: null,
-        dataPedido: null,
-        responsavelPedido: null,
-        avulso: true,
-      };
-    });
-
-  return listaSolicitacoes
-    .concat(pedidosAvulsos)
-    .concat(cotacoesAvulsas)
-    .sort((a, b) => {
-      const da = new Date(a.dataSolicitacao || a.dataCotacao || a.dataPedido || 0);
-      const db = new Date(b.dataSolicitacao || b.dataCotacao || b.dataPedido || 0);
-      return db - da;
-    });
+async function adminAcao(id, body){
+  try{
+    await api(`/admin/usuarios/${id}`, { method:'PUT', body: JSON.stringify(body) });
+    showToast('Atualizado!');
+    carregarAdmin();
+  }catch(e){ showToast(e.message, true); }
 }
 
-async function atualizarHistorico() {
-  if (HIST_CACHE.atualizando) return;
-  HIST_CACHE.atualizando = true;
-  try {
-    const fim = new Date();
-    const inicio = new Date();
-    inicio.setDate(inicio.getDate() - 90);
-    HIST_CACHE.data = await buscarHistorico(formatarDataGSB(inicio), formatarDataGSB(fim));
-    HIST_CACHE.atualizadoEm = new Date().toISOString();
-    console.log(`Histórico atualizado: ${HIST_CACHE.data.length} solicitações (90 dias)`);
-  } catch (e) {
-    console.error("Erro ao atualizar histórico do GSB:", e.message);
-  } finally {
-    HIST_CACHE.atualizando = false;
-  }
+async function adminExcluir(id, nome){
+  if (!confirm(`Excluir o usuário "${nome}"? Esta ação afeta também o acesso ao app da oficina.`)) return;
+  try{
+    await api(`/admin/usuarios/${id}`, { method:'DELETE' });
+    showToast('Usuário excluído');
+    carregarAdmin();
+  }catch(e){ showToast(e.message, true); }
 }
 
-// (chamadas de inicialização feitas no bloco async no topo do arquivo)
-
-// ── HELPERS HTTP ───────────────────────────────────────────
-function json(res, status, obj) {
-  res.writeHead(status, {
-    "Content-Type": "application/json",
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization",
-    "Access-Control-Allow-Methods": "GET,POST,PUT,PATCH,DELETE,OPTIONS",
-  });
-  res.end(JSON.stringify(obj));
+let respModalFilial = null;
+function abrirConfigResponsavel(filial){
+  respModalFilial = filial;
+  document.getElementById('respModalTitle').textContent = 'Responsável — ' + (filial === 'HGO' ? 'Goiás (HGO)' : 'Bahia (HBA)');
+  const sel = document.getElementById('respSelect');
+  sel.innerHTML = adminUsuarios.filter(u=>u.status==='aprovado').map(u=>`<option value="${u.id}">${u.nome} (${u.whatsapp})</option>`).join('');
+  document.getElementById('overlayResp').classList.add('open');
 }
-function readBody(req) {
-  return new Promise((resolve) => {
-    let b = "";
-    req.on("data", (c) => (b += c));
-    req.on("end", () => { try { resolve(JSON.parse(b || "{}")); } catch { resolve({}); } });
-  });
+async function salvarResponsavel(){
+  const id = document.getElementById('respSelect').value;
+  try{
+    await api('/config/responsavel', { method:'PUT', body: JSON.stringify({ filial: respModalFilial, user_id: id }) });
+    showToast('Responsável atualizado!');
+    closeOverlay('overlayResp');
+    carregarAdmin();
+  }catch(e){ showToast(e.message, true); }
 }
 
-// ── SERVER ─────────────────────────────────────────────────
-http.createServer(async (req, res) => {
-  const parsed = url.parse(req.url, true);
-  const p = parsed.pathname;
-
-  if (req.method === "OPTIONS") return json(res, 200, {});
-
-  try {
-    if (req.method === "POST" && p === "/registrar") {
-      const body = await readBody(req);
-      const whatsClean = limparWhats(body.whatsapp);
-      const nome = (body.nome || "").trim();
-      const senha = body.senha || "";
-      const filial = (body.filial || "").toString().toUpperCase();
-      if (!nome || !whatsClean || !senha) return json(res, 400, { error: "Preencha nome, WhatsApp e senha" });
-      if (senha.length < 4) return json(res, 400, { error: "Senha muito curta" });
-      if (!FILIAIS_PERMITIDAS.includes(filial)) return json(res, 400, { error: "Selecione a filial" });
-
-      const existente = await sbGet("usuarios", `whatsapp=eq.${encodeURIComponent(whatsClean)}`);
-      if (existente && existente[0]) return json(res, 409, { error: "Já existe um usuário com esse WhatsApp" });
-
-      await sbInsert("usuarios", {
-        nome,
-        whatsapp: whatsClean,
-        senha_hash: sha256(senha),
-        filial,
-        status: "pendente",
-        admin: false,
-      });
-      return json(res, 200, { ok: true });
-    }
-
-    // ── LOGIN ─────────────────────────────────────────────
-    if (req.method === "POST" && p === "/login") {
-      const { whatsapp, senha } = await readBody(req);
-      const whatsClean = limparWhats(whatsapp);
-      const rows = await sbGet("usuarios", `whatsapp=eq.${encodeURIComponent(whatsClean)}`);
-      const user = rows && rows[0];
-      if (!user || user.senha_hash !== sha256(senha)) return json(res, 401, { error: "WhatsApp ou senha inválidos" });
-      if (user.status !== "aprovado") return json(res, 403, { error: "Usuário ainda não aprovado" });
-      const token = crypto.randomBytes(24).toString("hex");
-      await sbInsert("sessoes", { token, user_id: user.id });
-      delete user.senha_hash;
-      return json(res, 200, { token, user });
-    }
-
-    if (req.method === "GET" && p === "/me") {
-      const user = await getSession(req);
-      if (!user) return json(res, 401, { error: "Não autenticado" });
-      delete user.senha_hash;
-      return json(res, 200, user);
-    }
-
-    // ── CADASTROS (em cache, resposta instantânea) ─────────
-    if (req.method === "GET" && p === "/gsb/filiais") {
-      const user = await getSession(req);
-      if (!user) return json(res, 401, { error: "Não autenticado" });
-      return json(res, 200, CACHE.filiais);
-    }
-    if (req.method === "GET" && p === "/gsb/setores") {
-      const user = await getSession(req);
-      if (!user) return json(res, 401, { error: "Não autenticado" });
-      const idFilial = parsed.query.idFilial;
-      const lista = idFilial ? CACHE.setores.filter((s) => String(s.idFilial) === String(idFilial)) : CACHE.setores;
-      return json(res, 200, lista);
-    }
-    if (req.method === "GET" && p === "/gsb/produtos-busca") {
-      const user = await getSession(req);
-      if (!user) return json(res, 401, { error: "Não autenticado" });
-      const q = (parsed.query.q || "").toString().trim().toLowerCase();
-      if (q.length < 2) return json(res, 200, []);
-      const resultados = CACHE.produtos.filter((p2) => p2.nome.toLowerCase().includes(q)).slice(0, 30);
-      return json(res, 200, resultados);
-    }
-    if (req.method === "POST" && p === "/gsb/atualizar-cache") {
-      const user = await getSession(req);
-      if (!user || !user.admin) return json(res, 403, { error: "Somente admin" });
-      atualizarCache();
-      return json(res, 200, { ok: true, iniciado: true });
-    }
-
-    // ── HISTÓRICO (90 dias por padrão, ou período customizado) ──
-    if (req.method === "GET" && p === "/gsb/historico-solicitacoes") {
-      const user = await getSession(req);
-      if (!user) return json(res, 401, { error: "Não autenticado" });
-      const { inicio, fim } = parsed.query;
-      if (inicio || fim) {
-        // período customizado: busca ao vivo, não usa o cache padrão de 90 dias
-        const dInicio = inicio ? formatarDataGSB(new Date(inicio + "T00:00:00")) : formatarDataGSB(new Date(Date.now() - 90 * 24 * 60 * 60 * 1000));
-        const dFim = fim ? formatarDataGSB(new Date(fim + "T00:00:00")) : formatarDataGSB(new Date());
-        try {
-          const dados = await buscarHistorico(dInicio, dFim);
-          return json(res, 200, dados);
-        } catch (e) {
-          return json(res, 500, { error: "Erro ao buscar histórico: " + e.message });
-        }
-      }
-      if (Date.now() - new Date(HIST_CACHE.atualizadoEm || 0).getTime() > 30 * 60 * 1000) atualizarHistorico();
-      return json(res, 200, HIST_CACHE.data);
-    }
-
-    // ── SOLICITAÇÕES DE COMPRA ────────────────────────────
-    if (req.method === "GET" && p === "/solicitacoes") {
-      const user = await getSession(req);
-      if (!user) return json(res, 401, { error: "Não autenticado" });
-      const filtro = user.admin ? "" : `&user_id=eq.${user.id}`;
-      const cabecalhos = await sbGet("solicitacoescompras", `select=*${filtro}&order=criado_em.desc`);
-      const ids = (cabecalhos || []).map((c) => c.id);
-      let itens = [];
-      if (ids.length) itens = await sbGet("solicitacoescompras_itens", `solicitacao_id=in.(${ids.join(",")})`);
-      const porSolic = {};
-      (itens || []).forEach((it) => (porSolic[it.solicitacao_id] = porSolic[it.solicitacao_id] || []).push(it));
-      const out = (cabecalhos || []).map((c) => ({ ...c, itens: porSolic[c.id] || [] }));
-      return json(res, 200, out);
-    }
-
-    if (req.method === "POST" && p === "/solicitacoes") {
-      const user = await getSession(req);
-      if (!user) return json(res, 401, { error: "Não autenticado" });
-      const body = await readBody(req);
-      if (!body.itens || !body.itens.length) return json(res, 400, { error: "Inclua ao menos um item" });
-
-      const cab = await sbInsert("solicitacoescompras", {
-        id_filial: body.id_filial || null,
-        filial_nome: body.filial_nome || null,
-        filial_sigla: body.filial_sigla || null,
-        id_setor: body.id_setor || null,
-        setor_nome: body.setor_nome || null,
-        obs: body.obs || null,
-        user_id: user.id,
-        solicitante_nome: user.nome,
-        status: "pendente",
-      });
-      const solicitacaoId = cab[0].id;
-
-      const itensPayload = body.itens.map((it) => ({
-        solicitacao_id: solicitacaoId,
-        id_produto: it.idProduto || null,
-        descricao_produto: it.descricaoProduto,
-        quantidade: it.quantidade,
-        unidade: it.unidade || null,
-        id_urgencia: it.idUrgencia || "2",
-        urgencia_nome: it.urgenciaNome || "Normal",
-      }));
-      await sbInsert("solicitacoescompras_itens", itensPayload);
-
-      return json(res, 200, { ok: true, id: solicitacaoId });
-    }
-
-    if (req.method === "PUT" && p.startsWith("/solicitacoes/")) {
-      const user = await getSession(req);
-      if (!user) return json(res, 401, { error: "Não autenticado" });
-      const id = p.split("/")[2];
-      const body = await readBody(req);
-      const upd = {};
-      if (body.status) upd.status = body.status;
-      if (body.id_comprador) { upd.id_comprador = body.id_comprador; upd.comprador_nome = user.nome; }
-      if (body.numero_solicitacao_gsb) upd.numero_solicitacao_gsb = body.numero_solicitacao_gsb;
-      if (body.id_solicitacao_compra_gsb) upd.id_solicitacao_compra_gsb = body.id_solicitacao_compra_gsb;
-      await sbPatch("solicitacoescompras", upd, `id=eq.${id}`);
-      return json(res, 200, { ok: true });
-    }
-
-    if (req.method === "DELETE" && p.startsWith("/solicitacoes/")) {
-      const user = await getSession(req);
-      if (!user) return json(res, 401, { error: "Não autenticado" });
-      const id = p.split("/")[2];
-      const filtro = user.admin ? `id=eq.${id}` : `id=eq.${id}&user_id=eq.${user.id}&status=eq.pendente`;
-      await sbDelete("solicitacoescompras", filtro);
-      return json(res, 200, { ok: true });
-    }
-
-    // ── CONFIG (responsável por unidade que recebe as solicitações via WhatsApp) ──
-    // Qualquer usuário logado pode LER quem é o responsável da unidade (precisa do nome/whatsapp p/ enviar).
-    if (req.method === "GET" && p === "/config/responsavel") {
-      const user = await getSession(req);
-      if (!user) return json(res, 401, { error: "Não autenticado" });
-      const filial = (parsed.query.filial || "").toString().toUpperCase();
-      if (!FILIAIS_PERMITIDAS.includes(filial)) return json(res, 400, { error: "Filial inválida" });
-      const chave = `responsavelComprasId_${filial}`;
-      const cfgRows = await sbGet("config", `chave=eq.${chave}`);
-      const id = cfgRows && cfgRows[0] && cfgRows[0].valor;
-      if (!id) return json(res, 200, null);
-      const uRows = await sbGet("usuarios", `id=eq.${id}&select=id,nome,whatsapp`);
-      return json(res, 200, (uRows && uRows[0]) || null);
-    }
-
-    // Só admin pode TROCAR quem é o responsável de cada unidade
-    if (req.method === "PUT" && p === "/config/responsavel") {
-      const user = await getSession(req);
-      if (!user || !user.admin) return json(res, 403, { error: "Somente admin" });
-      const body = await readBody(req);
-      const filial = (body.filial || "").toString().toUpperCase();
-      if (!FILIAIS_PERMITIDAS.includes(filial)) return json(res, 400, { error: "Filial inválida" });
-      const chave = `responsavelComprasId_${filial}`;
-      const existe = await sbGet("config", `chave=eq.${chave}`);
-      if (existe && existe[0]) {
-        await sbPatch("config", { valor: String(body.user_id) }, `chave=eq.${chave}`);
-      } else {
-        await sbInsert("config", { chave, valor: String(body.user_id) });
-      }
-      return json(res, 200, { ok: true });
-    }
-
-    // ── ADMIN: gestão de usuários (mesma tabela da oficina) ──
-    if (req.method === "GET" && p === "/admin/usuarios") {
-      const user = await getSession(req);
-      if (!user || !user.admin) return json(res, 403, { error: "Somente admin" });
-      const rows = await sbGet("usuarios", `select=id,nome,whatsapp,filial,status,admin&order=nome.asc`);
-      return json(res, 200, rows || []);
-    }
-
-    if (req.method === "PUT" && p.startsWith("/admin/usuarios/")) {
-      const user = await getSession(req);
-      if (!user || !user.admin) return json(res, 403, { error: "Somente admin" });
-      const id = p.split("/")[3];
-      const body = await readBody(req);
-      const upd = {};
-      if (body.status) upd.status = body.status;
-      if (typeof body.admin === "boolean") upd.admin = body.admin;
-      await sbPatch("usuarios", upd, `id=eq.${id}`);
-      return json(res, 200, { ok: true });
-    }
-
-    if (req.method === "DELETE" && p.startsWith("/admin/usuarios/")) {
-      const user = await getSession(req);
-      if (!user || !user.admin) return json(res, 403, { error: "Somente admin" });
-      const id = p.split("/")[3];
-      await sbDelete("usuarios", `id=eq.${id}`);
-      return json(res, 200, { ok: true });
-    }
-
-    json(res, 404, { error: "Not found" });
-  } catch (e) {
-    console.error(e);
-    json(res, 500, { error: e.message });
-  }
-}).listen(PORT, () => console.log(`Compras proxy rodando na porta ${PORT}`));
+init();
+</script>
+</body>
+</html>
