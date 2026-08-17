@@ -567,14 +567,23 @@ function abrirDetalheHistorico(id){
   function formatarMoeda(v){
     return v == null ? '—' : Number(v).toLocaleString('pt-BR', { style:'currency', currency:'BRL' });
   }
-  const linhas = s.itens.map(it => `
+  const linhas = s.itens.map(it => {
+    const propostas = it.propostasCotacao || [];
+    const outrasPropostas = propostas.filter(p => !p.aprovado);
+    const listaPropostas = outrasPropostas.length
+      ? `<div style="margin-top:4px;">` + outrasPropostas.map(p => `
+          <div class="muted" style="font-size:12px;">${p.fornecedor || 'Fornecedor'}: ${formatarMoeda(p.valorUnitario)} (unit.) — não venceu</div>
+        `).join('') + `</div>`
+      : '';
+    return `
     <tr>
       <td>${it.quantidade}</td>
       <td>${it.unidade || '—'}</td>
-      <td>${it.produto}</td>
+      <td>${it.produto}${listaPropostas}</td>
       ${temPrecoCotacao ? `<td>${formatarMoeda(it.cotacaoValorUnitario)}</td><td>${formatarMoeda(it.cotacaoValorTotal)}</td>` : ''}
       ${temPrecoPedido ? `<td>${formatarMoeda(it.valorUnitario)}</td><td>${formatarMoeda(it.valorTotal)}</td>` : ''}
-    </tr>`).join('');
+    </tr>`;
+  }).join('');
   document.getElementById('histDetalheTabela').innerHTML = `
     <table style="width:100%; border-collapse:collapse; font-size:14px;">
       <thead>
