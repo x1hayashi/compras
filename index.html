@@ -522,7 +522,7 @@ function renderHistorico(){
       ? `Nº Solicitação ${s.numeroSolicitacao} · ${fmtData(s.dataSolicitacao) || '—'} · ${s.solicitante || '—'}`
       : null;
     const linhaCota = s.numeroCotacao
-      ? `Nº Cotação ${s.numeroCotacao} · ${fmtData(s.dataCotacao) || '—'} · ${s.comprador || '—'}`
+      ? `Nº Cotação ${s.numeroCotacao} · ${fmtData(s.dataCotacao) || '—'} · ${s.comprador || '—'}${s.fornecedorCotacao ? ' · Fornecedor: ' + s.fornecedorCotacao : ''}`
       : null;
     const linhaPedido = s.numeroPedido
       ? `Nº Pedido ${s.numeroPedido} · ${fmtData(s.dataPedido) || '—'} · ${s.responsavelPedido || '—'}${s.fornecedorPedido ? ' · Fornecedor: ' + s.fornecedorPedido : ''}`
@@ -553,7 +553,7 @@ function abrirDetalheHistorico(id){
     ? `Nº Solicitação ${s.numeroSolicitacao} · ${fmtData(s.dataSolicitacao) || '—'} · ${s.solicitante || '—'}`
     : null;
   const linhaCota = s.numeroCotacao
-    ? `Nº Cotação ${s.numeroCotacao} · ${fmtData(s.dataCotacao) || '—'} · ${s.comprador || '—'}`
+    ? `Nº Cotação ${s.numeroCotacao} · ${fmtData(s.dataCotacao) || '—'} · ${s.comprador || '—'}${s.fornecedorCotacao ? ' · Fornecedor: ' + s.fornecedorCotacao : ''}`
     : null;
   const linhaPedido = s.numeroPedido
     ? `Nº Pedido ${s.numeroPedido} · ${fmtData(s.dataPedido) || '—'} · ${s.responsavelPedido || '—'}${s.fornecedorPedido ? ' · Fornecedor: ' + s.fornecedorPedido : ''}`
@@ -562,7 +562,8 @@ function abrirDetalheHistorico(id){
   document.getElementById('histDetalheTitulo').textContent = titulo;
   document.getElementById('histDetalheSub').innerHTML = [linhaSolic, linhaCota, linhaPedido].filter(Boolean)
     .map(l => `<div>${l}</div>`).join('');
-  const temPreco = s.itens.some(it => it.valorUnitario != null);
+  const temPrecoCotacao = s.itens.some(it => it.cotacaoValorUnitario != null);
+  const temPrecoPedido = s.itens.some(it => it.valorUnitario != null);
   function formatarMoeda(v){
     return v == null ? '—' : Number(v).toLocaleString('pt-BR', { style:'currency', currency:'BRL' });
   }
@@ -571,7 +572,8 @@ function abrirDetalheHistorico(id){
       <td>${it.quantidade}</td>
       <td>${it.unidade || '—'}</td>
       <td>${it.produto}</td>
-      ${temPreco ? `<td>${formatarMoeda(it.valorUnitario)}</td><td>${formatarMoeda(it.valorTotal)}</td>` : ''}
+      ${temPrecoCotacao ? `<td>${formatarMoeda(it.cotacaoValorUnitario)}</td><td>${formatarMoeda(it.cotacaoValorTotal)}</td>` : ''}
+      ${temPrecoPedido ? `<td>${formatarMoeda(it.valorUnitario)}</td><td>${formatarMoeda(it.valorTotal)}</td>` : ''}
     </tr>`).join('');
   document.getElementById('histDetalheTabela').innerHTML = `
     <table style="width:100%; border-collapse:collapse; font-size:14px;">
@@ -580,7 +582,8 @@ function abrirDetalheHistorico(id){
           <th style="padding:6px 4px;">Qtd.</th>
           <th style="padding:6px 4px;">Unid.</th>
           <th style="padding:6px 4px;">Produto</th>
-          ${temPreco ? `<th style="padding:6px 4px;">Preço Unit.</th><th style="padding:6px 4px;">Total</th>` : ''}
+          ${temPrecoCotacao ? `<th style="padding:6px 4px;">Preço Cotação</th><th style="padding:6px 4px;">Total Cotação</th>` : ''}
+          ${temPrecoPedido ? `<th style="padding:6px 4px;">Preço Pedido</th><th style="padding:6px 4px;">Total Pedido</th>` : ''}
         </tr>
       </thead>
       <tbody>${linhas}</tbody>
