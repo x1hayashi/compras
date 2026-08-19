@@ -242,31 +242,26 @@
     <hr style="border:none; border-top:1px solid var(--border); margin:16px 0;">
 
     <label>Adicionar item</label>
-    <div class="autocomplete-box">
-      <input id="buscaProduto" placeholder="Digite o nome do produto..." oninput="buscarProduto()" autocomplete="off">
-      <div id="sugestoes" class="suggestions hidden"></div>
-    </div>
-    <div id="produtoSelecionadoBox" class="hidden" style="margin-top:10px;">
-      <div class="muted" id="produtoSelecionadoLabel"></div>
-      <div style="display:flex; gap:8px; margin-top:8px;">
-        <div style="flex:1;">
-          <label>Quantidade</label>
-          <input id="itemQtd" type="number" min="0" step="0.01">
-        </div>
-        <div style="flex:1;">
-          <label>Unidade</label>
-          <input id="itemUnidade" readonly>
-        </div>
+    <label>Nome do produto</label>
+    <input id="itemProdutoTexto" placeholder="Digite o nome do produto..." autocomplete="off">
+    <div style="display:flex; gap:8px; margin-top:8px;">
+      <div style="flex:1;">
+        <label>Quantidade</label>
+        <input id="itemQtd" type="number" min="0" step="0.01">
       </div>
-      <label>Urgência</label>
-      <select id="itemUrgencia">
-        <option value="1">Baixa</option>
-        <option value="2" selected>Normal</option>
-        <option value="3">Alta</option>
-        <option value="4">Urgente</option>
-      </select>
-      <button class="btn-ghost btn-sm" style="margin-top:10px; width:100%;" onclick="adicionarItem()">Adicionar item à lista</button>
+      <div style="flex:1;">
+        <label>Unidade</label>
+        <select id="itemUnidade"></select>
+      </div>
     </div>
+    <label>Urgência</label>
+    <select id="itemUrgencia">
+      <option value="1">Baixa</option>
+      <option value="2" selected>Normal</option>
+      <option value="3">Alta</option>
+      <option value="4">Urgente</option>
+    </select>
+    <button class="btn-ghost btn-sm" style="margin-top:10px; width:100%;" onclick="adicionarItem()">Adicionar item à lista</button>
 
     <div id="itensLista" style="margin-top:16px;"></div>
 
@@ -313,9 +308,8 @@ let currentUser = null;
 let currentTab = "pendente";
 let currentFilialSigla = null;
 let solicitacoes = [];
-let produtoSelecionado = null;
 let itensNovos = [];
-let cadastrosCache = { filiais: [], setores: [] };
+let cadastrosCache = { filiais: [], setores: [], unidades: [] };
 let adminUsuarios = [];
 let historicoDados = [];
 let currentGrupoHistorico = 'aberto';
@@ -427,6 +421,11 @@ async function carregarCadastros(){
     selF.innerHTML = cadastrosCache.filiais.map(f=>`<option value="${f.idFilial}" data-sigla="${f.siglaFilial}">${f.nome} (${f.siglaFilial})</option>`).join('');
     await onFilialChange();
   }catch(e){ /* cadastros são opcionais para exibição */ }
+  try{
+    cadastrosCache.unidades = await api('/gsb/unidades');
+    const selU = document.getElementById('itemUnidade');
+    selU.innerHTML = cadastrosCache.unidades.map(u=>`<option value="${u.siglaUnidade}">${u.siglaUnidade} — ${u.nomeUnidade}</option>`).join('');
+  }catch(e){ /* segue sem a lista pronta, o select fica vazio */ }
 }
 
 async function onFilialChange(){
@@ -678,11 +677,11 @@ async function cancelar(id){
 
 // ── NOVA SOLICITAÇÃO ──────────────────────────────────────
 function openNovaSolicitacao(){
-  itensNovos = []; produtoSelecionado = null;
+  itensNovos = [];
   document.getElementById('itensLista').innerHTML = '';
   document.getElementById('novaObs').value = '';
-  document.getElementById('buscaProduto').value = '';
-  document.getElementById('produtoSelecionadoBox').classList.add('hidden');
+  document.getElementById('itemProdutoTexto').value = '';
+  document.getElementById('itemQtd').value = '';
   const selF = document.getElementById('novaFilial');
   const opt = Array.from(selF.options).find(o => o.dataset.sigla === currentFilialSigla);
   if (opt) { selF.value = opt.value; onFilialChange(); }
@@ -691,47 +690,24 @@ function openNovaSolicitacao(){
 function closeOverlay(id){ document.getElementById(id).classList.remove('open'); }
 function closeOverlayBg(e, id){ if (e.target === document.getElementById(id)) closeOverlay(id); }
 
-let buscaTimeout;
-function buscarProduto(){
-  clearTimeout(buscaTimeout);
-  const q = document.getElementById('buscaProduto').value.trim();
-  const box = document.getElementById('sugestoes');
-  if (q.length < 2){ box.classList.add('hidden'); return; }
-  buscaTimeout = setTimeout(async ()=>{
-    try{
-      const resultados = await api('/gsb/produtos-busca?q=' + encodeURIComponent(q));
-      if (!resultados.length){ box.classList.add('hidden'); return; }
-      box.innerHTML = resultados.map(p=>`<div class="suggestion" onclick='selecionarProduto(${JSON.stringify(p).replace(/'/g,"&#39;")})'><span>${p.nome}</span><span class="unid">${p.unidade||''}</span></div>`).join('');
-      box.classList.remove('hidden');
-    }catch(e){ box.classList.add('hidden'); }
-  }, 250);
-}
-function selecionarProduto(p){
-  produtoSelecionado = p;
-  document.getElementById('buscaProduto').value = p.nome;
-  document.getElementById('sugestoes').classList.add('hidden');
-  document.getElementById('produtoSelecionadoLabel').textContent = 'Selecionado: ' + p.nome;
-  document.getElementById('itemUnidade').value = p.unidade || '—';
-  document.getElementById('produtoSelecionadoBox').classList.remove('hidden');
-}
 function adicionarItem(){
+  const nomeProduto = document.getElementById('itemProdutoTexto').value.trim();
   const qtd = parseFloat(document.getElementById('itemQtd').value);
-  if (!produtoSelecionado){ showToast('Busque e selecione um produto', true); return; }
+  if (!nomeProduto){ showToast('Digite o nome do produto', true); return; }
   if (!qtd || qtd <= 0){ showToast('Informe a quantidade', true); return; }
+  const unidSel = document.getElementById('itemUnidade');
   const urgSel = document.getElementById('itemUrgencia');
   itensNovos.push({
-    idProduto: produtoSelecionado.idProduto,
-    descricaoProduto: produtoSelecionado.nome,
+    idProduto: null,
+    descricaoProduto: nomeProduto,
     quantidade: qtd,
-    unidade: produtoSelecionado.unidade || '',
+    unidade: unidSel.value || '',
     idUrgencia: urgSel.value,
     urgenciaNome: urgSel.options[urgSel.selectedIndex].text,
   });
   renderItensNovos();
-  produtoSelecionado = null;
-  document.getElementById('buscaProduto').value = '';
+  document.getElementById('itemProdutoTexto').value = '';
   document.getElementById('itemQtd').value = '';
-  document.getElementById('produtoSelecionadoBox').classList.add('hidden');
 }
 function renderItensNovos(){
   document.getElementById('itensLista').innerHTML = itensNovos.map((it,i)=>`
