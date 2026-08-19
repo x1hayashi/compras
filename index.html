@@ -425,6 +425,8 @@ async function carregarCadastros(){
     cadastrosCache.unidades = await api('/gsb/unidades');
     const selU = document.getElementById('itemUnidade');
     selU.innerHTML = cadastrosCache.unidades.map(u=>`<option value="${u.siglaUnidade}">${u.siglaUnidade} — ${u.nomeUnidade}</option>`).join('');
+    const opcaoUN = Array.from(selU.options).find(o => o.value === 'UN');
+    if (opcaoUN) selU.value = 'UN';
   }catch(e){ /* segue sem a lista pronta, o select fica vazio */ }
 }
 
@@ -708,6 +710,7 @@ function adicionarItem(){
   renderItensNovos();
   document.getElementById('itemProdutoTexto').value = '';
   document.getElementById('itemQtd').value = '';
+  if (Array.from(unidSel.options).some(o => o.value === 'UN')) unidSel.value = 'UN';
 }
 function renderItensNovos(){
   document.getElementById('itensLista').innerHTML = itensNovos.map((it,i)=>`
