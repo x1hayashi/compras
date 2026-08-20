@@ -254,13 +254,8 @@
         <select id="itemUnidade"></select>
       </div>
     </div>
-    <label>Urgência</label>
-    <select id="itemUrgencia">
-      <option value="1">Baixa</option>
-      <option value="2" selected>Normal</option>
-      <option value="3">Alta</option>
-      <option value="4">Urgente</option>
-    </select>
+    <label>Data que precisa do item</label>
+    <input id="itemDataNecessidade" type="date" required>
     <button class="btn-ghost btn-sm" style="margin-top:10px; width:100%;" onclick="adicionarItem()">Adicionar item à lista</button>
 
     <div id="itensLista" style="margin-top:16px;"></div>
@@ -634,7 +629,7 @@ function render(){
     const itensHtml = (s.itens||[]).map(it=>`
       <div class="item-row">
         <span>${it.descricao_produto} ${it.unidade?('('+it.unidade+')'):''}</span>
-        <span>${it.quantidade} · ${it.urgencia_nome}</span>
+        <span>${it.quantidade} · até ${it.data_necessidade ? new Date(it.data_necessidade+'T00:00:00').toLocaleDateString('pt-BR') : '—'}</span>
       </div>`).join('');
     const acoes = currentUser.admin && s.status === 'pendente'
       ? `<div style="display:flex; gap:8px; margin-top:10px;">
@@ -684,6 +679,9 @@ function openNovaSolicitacao(){
   document.getElementById('novaObs').value = '';
   document.getElementById('itemProdutoTexto').value = '';
   document.getElementById('itemQtd').value = '';
+  const dataInput = document.getElementById('itemDataNecessidade');
+  dataInput.min = new Date().toISOString().slice(0,10);
+  dataInput.value = '';
   const selF = document.getElementById('novaFilial');
   const opt = Array.from(selF.options).find(o => o.dataset.sigla === currentFilialSigla);
   if (opt) { selF.value = opt.value; onFilialChange(); }
@@ -695,27 +693,29 @@ function closeOverlayBg(e, id){ if (e.target === document.getElementById(id)) cl
 function adicionarItem(){
   const nomeProduto = document.getElementById('itemProdutoTexto').value.trim();
   const qtd = parseFloat(document.getElementById('itemQtd').value);
+  const dataInput = document.getElementById('itemDataNecessidade');
+  const dataNecessidade = dataInput.value;
   if (!nomeProduto){ showToast('Digite o nome do produto', true); return; }
   if (!qtd || qtd <= 0){ showToast('Informe a quantidade', true); return; }
+  if (!dataNecessidade){ showToast('Escolha a data que precisa do item', true); return; }
   const unidSel = document.getElementById('itemUnidade');
-  const urgSel = document.getElementById('itemUrgencia');
   itensNovos.push({
     idProduto: null,
     descricaoProduto: nomeProduto,
     quantidade: qtd,
     unidade: unidSel.value || '',
-    idUrgencia: urgSel.value,
-    urgenciaNome: urgSel.options[urgSel.selectedIndex].text,
+    dataNecessidade,
   });
   renderItensNovos();
   document.getElementById('itemProdutoTexto').value = '';
   document.getElementById('itemQtd').value = '';
+  dataInput.value = '';
   if (Array.from(unidSel.options).some(o => o.value === 'UN')) unidSel.value = 'UN';
 }
 function renderItensNovos(){
   document.getElementById('itensLista').innerHTML = itensNovos.map((it,i)=>`
     <div class="item-added">
-      <span>${it.descricaoProduto} — ${it.quantidade}${it.unidade?(' '+it.unidade):''} (${it.urgenciaNome})</span>
+      <span>${it.descricaoProduto} — ${it.quantidade}${it.unidade?(' '+it.unidade):''} (até ${new Date(it.dataNecessidade+'T00:00:00').toLocaleDateString('pt-BR')})</span>
       <button onclick="removerItem(${i})">✕</button>
     </div>`).join('');
 }
@@ -755,7 +755,7 @@ async function enviarWhatsappResponsavel({ filialNome, filialSigla, setorNome, o
       return;
     }
     const hoje = new Date().toLocaleDateString('pt-BR');
-    const itensTxt = itens.map(it => `• ${it.descricaoProduto} — ${it.quantidade}${it.unidade?(' '+it.unidade):''} (${it.urgenciaNome})`).join('\n');
+    const itensTxt = itens.map(it => `• ${it.descricaoProduto} — ${it.quantidade}${it.unidade?(' '+it.unidade):''} (necessário até ${new Date(it.dataNecessidade+'T00:00:00').toLocaleDateString('pt-BR')})`).join('\n');
     const msg = `🛒 *NOVA SOLICITAÇÃO DE COMPRA*\n\n📅 *Data:* ${hoje}\n🏢 *Filial:* ${filialNome}\n🏗️ *Setor:* ${setorNome}\n👤 *Solicitante:* ${currentUser.nome}\n\n📦 *Itens:*\n${itensTxt}${obs ? `\n\n📝 *Observação:*\n${obs}` : ''}\n\n_Favor lançar no sistema GSB._`;
     const whats = resp.whatsapp.replace(/\D/g,'');
     window.location.href = `https://wa.me/${whats}?text=${encodeURIComponent(msg)}`;
