@@ -66,6 +66,7 @@
     padding:12px 16px; cursor:pointer;
   }
   .btn-primary{background:var(--accent); color:#fff; width:100%;}
+  button:disabled{opacity:.6; cursor:not-allowed;}
   .btn-primary:hover{background:var(--accent-dark);}
   .btn-ghost{background:transparent; color:var(--accent); border:1px solid var(--accent);}
   .btn-danger{background:transparent; color:var(--cancelada); border:1px solid var(--cancelada);}
@@ -125,7 +126,7 @@
     <input id="loginWhats" placeholder="+55 (xx) xxxxx-xxxx" inputmode="tel" oninput="mascararWhats(this)">
     <label>Senha</label>
     <input id="loginSenha" type="password">
-    <button class="btn-primary" style="margin-top:16px;" onclick="login()">Entrar</button>
+    <button class="btn-primary" id="btnLogin" style="margin-top:16px;" onclick="login()">Entrar</button>
     <button class="btn-ghost" style="margin-top:10px; width:100%;" onclick="abrirRegistro()">Criar conta</button>
   </div>
 
@@ -143,7 +144,7 @@
       <option value="HGO">Goiás (HGO)</option>
       <option value="HBA">Bahia (HBA)</option>
     </select>
-    <button class="btn-primary" style="margin-top:16px;" onclick="registrar()">Criar conta</button>
+    <button class="btn-primary" id="btnRegistrar" style="margin-top:16px;" onclick="registrar()">Criar conta</button>
     <button class="btn-ghost" style="margin-top:10px; width:100%;" onclick="fecharRegistro()">Voltar para o login</button>
     <p class="muted" style="margin-top:10px;">Depois de criar, aguarde a aprovação de um administrador para conseguir entrar.</p>
   </div>
@@ -236,6 +237,9 @@
     <label>Setor</label>
     <select id="novaSetor"></select>
 
+    <label>Data que precisa dos itens</label>
+    <input id="novaDataNecessidade" type="date" readonly onclick="this.showPicker && this.showPicker()" onkeydown="return false" required>
+
     <label>Observação (opcional)</label>
     <textarea id="novaObs" rows="2" placeholder="Ex: compra urgente para colheita"></textarea>
 
@@ -254,13 +258,11 @@
         <select id="itemUnidade"></select>
       </div>
     </div>
-    <label>Data que precisa do item</label>
-    <input id="itemDataNecessidade" type="date" required>
     <button class="btn-ghost btn-sm" style="margin-top:10px; width:100%;" onclick="adicionarItem()">Adicionar item à lista</button>
 
     <div id="itensLista" style="margin-top:16px;"></div>
 
-    <button class="btn-primary" style="margin-top:16px;" onclick="enviarSolicitacao()">Enviar solicitação</button>
+    <button class="btn-primary" id="btnEnviarSolicitacao" style="margin-top:16px;" onclick="enviarSolicitacao()">Enviar solicitação</button>
   </div>
 </div>
 
@@ -392,21 +394,37 @@ async function registrar(){
   const whatsapp = document.getElementById('regWhats').value.trim();
   const senha = document.getElementById('regSenha').value;
   const filial = document.getElementById('regFilial').value;
+  const btn = document.getElementById('btnRegistrar');
+  const textoOriginal = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Criando conta...';
   try{
     await api('/registrar', { method:'POST', body: JSON.stringify({ nome, whatsapp, senha, filial }) });
     showToast('Conta criada! Aguarde a aprovação de um administrador.');
     fecharRegistro();
   }catch(e){ showToast(e.message, true); }
+  finally{
+    btn.disabled = false;
+    btn.textContent = textoOriginal;
+  }
 }
 
 async function login(){
   const whatsapp = document.getElementById('loginWhats').value.trim();
   const senha = document.getElementById('loginSenha').value;
+  const btn = document.getElementById('btnLogin');
+  const textoOriginal = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Entrando...';
   try{
     const data = await api('/login', { method:'POST', body: JSON.stringify({ whatsapp, senha }) });
     token = data.token; localStorage.setItem('compras_token', token);
     location.reload();
-  }catch(e){ showToast(e.message, true); }
+  }catch(e){
+    showToast(e.message, true);
+    btn.disabled = false;
+    btn.textContent = textoOriginal;
+  }
 }
 
 async function carregarCadastros(){
@@ -629,7 +647,7 @@ function render(){
     const itensHtml = (s.itens||[]).map(it=>`
       <div class="item-row">
         <span>${it.descricao_produto} ${it.unidade?('('+it.unidade+')'):''}</span>
-        <span>${it.quantidade} · até ${it.data_necessidade ? new Date(it.data_necessidade+'T00:00:00').toLocaleDateString('pt-BR') : '—'}</span>
+        <span>${it.quantidade}</span>
       </div>`).join('');
     const acoes = currentUser.admin && s.status === 'pendente'
       ? `<div style="display:flex; gap:8px; margin-top:10px;">
@@ -646,7 +664,7 @@ function render(){
           </div>
           <span class="badge ${badgeClass}">${s.status}</span>
         </div>
-        <div class="muted">Solicitante: ${s.solicitante_nome}</div>
+        <div class="muted">Solicitante: ${s.solicitante_nome}${s.data_necessidade ? ' · Necessário até ' + new Date(s.data_necessidade+'T00:00:00').toLocaleDateString('pt-BR') : ''}</div>
         ${s.obs ? `<div style="margin-top:6px; font-size:14px;">${s.obs}</div>` : ''}
         <div style="margin-top:10px;">${itensHtml}</div>
         ${acoes}
@@ -679,7 +697,7 @@ function openNovaSolicitacao(){
   document.getElementById('novaObs').value = '';
   document.getElementById('itemProdutoTexto').value = '';
   document.getElementById('itemQtd').value = '';
-  const dataInput = document.getElementById('itemDataNecessidade');
+  const dataInput = document.getElementById('novaDataNecessidade');
   dataInput.min = new Date().toISOString().slice(0,10);
   dataInput.value = '';
   const selF = document.getElementById('novaFilial');
@@ -693,29 +711,24 @@ function closeOverlayBg(e, id){ if (e.target === document.getElementById(id)) cl
 function adicionarItem(){
   const nomeProduto = document.getElementById('itemProdutoTexto').value.trim();
   const qtd = parseFloat(document.getElementById('itemQtd').value);
-  const dataInput = document.getElementById('itemDataNecessidade');
-  const dataNecessidade = dataInput.value;
   if (!nomeProduto){ showToast('Digite o nome do produto', true); return; }
   if (!qtd || qtd <= 0){ showToast('Informe a quantidade', true); return; }
-  if (!dataNecessidade){ showToast('Escolha a data que precisa do item', true); return; }
   const unidSel = document.getElementById('itemUnidade');
   itensNovos.push({
     idProduto: null,
     descricaoProduto: nomeProduto,
     quantidade: qtd,
     unidade: unidSel.value || '',
-    dataNecessidade,
   });
   renderItensNovos();
   document.getElementById('itemProdutoTexto').value = '';
   document.getElementById('itemQtd').value = '';
-  dataInput.value = '';
   if (Array.from(unidSel.options).some(o => o.value === 'UN')) unidSel.value = 'UN';
 }
 function renderItensNovos(){
   document.getElementById('itensLista').innerHTML = itensNovos.map((it,i)=>`
     <div class="item-added">
-      <span>${it.descricaoProduto} — ${it.quantidade}${it.unidade?(' '+it.unidade):''} (até ${new Date(it.dataNecessidade+'T00:00:00').toLocaleDateString('pt-BR')})</span>
+      <span>${it.descricaoProduto} — ${it.quantidade}${it.unidade?(' '+it.unidade):''}</span>
       <button onclick="removerItem(${i})">✕</button>
     </div>`).join('');
 }
@@ -723,6 +736,8 @@ function removerItem(i){ itensNovos.splice(i,1); renderItensNovos(); }
 
 async function enviarSolicitacao(){
   if (!itensNovos.length){ showToast('Adicione ao menos um item', true); return; }
+  const dataNecessidade = document.getElementById('novaDataNecessidade').value;
+  if (!dataNecessidade){ showToast('Escolha a data que precisa dos itens', true); return; }
   const filialSel = document.getElementById('novaFilial');
   const setorSel = document.getElementById('novaSetor');
   const filialNome = filialSel.options[filialSel.selectedIndex]?.text || '';
@@ -735,19 +750,28 @@ async function enviarSolicitacao(){
     filial_sigla: filialSigla,
     id_setor: setorSel.value,
     setor_nome: setorNome,
+    data_necessidade: dataNecessidade,
     obs,
     itens: itensNovos,
   };
+  const btn = document.getElementById('btnEnviarSolicitacao');
+  const textoOriginal = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Enviando...';
   try{
     await api('/solicitacoes', { method:'POST', body: JSON.stringify(body) });
     showToast('Solicitação enviada!');
     closeOverlay('overlayNova');
     await carregarSolicitacoes();
-    await enviarWhatsappResponsavel({ filialNome, filialSigla, setorNome, obs, itens: itensNovos });
+    await enviarWhatsappResponsavel({ filialNome, filialSigla, setorNome, obs, dataNecessidade, itens: itensNovos });
   }catch(e){ showToast(e.message, true); }
+  finally{
+    btn.disabled = false;
+    btn.textContent = textoOriginal;
+  }
 }
 
-async function enviarWhatsappResponsavel({ filialNome, filialSigla, setorNome, obs, itens }){
+async function enviarWhatsappResponsavel({ filialNome, filialSigla, setorNome, obs, dataNecessidade, itens }){
   try{
     const resp = await api('/config/responsavel?filial=' + encodeURIComponent(filialSigla));
     if (!resp || !resp.whatsapp){
@@ -755,8 +779,9 @@ async function enviarWhatsappResponsavel({ filialNome, filialSigla, setorNome, o
       return;
     }
     const hoje = new Date().toLocaleDateString('pt-BR');
-    const itensTxt = itens.map(it => `• ${it.descricaoProduto} — ${it.quantidade}${it.unidade?(' '+it.unidade):''} (necessário até ${new Date(it.dataNecessidade+'T00:00:00').toLocaleDateString('pt-BR')})`).join('\n');
-    const msg = `🛒 *NOVA SOLICITAÇÃO DE COMPRA*\n\n📅 *Data:* ${hoje}\n🏢 *Filial:* ${filialNome}\n🏗️ *Setor:* ${setorNome}\n👤 *Solicitante:* ${currentUser.nome}\n\n📦 *Itens:*\n${itensTxt}${obs ? `\n\n📝 *Observação:*\n${obs}` : ''}\n\n_Favor lançar no sistema GSB._`;
+    const dataFmt = new Date(dataNecessidade+'T00:00:00').toLocaleDateString('pt-BR');
+    const itensTxt = itens.map(it => `• ${it.descricaoProduto} — ${it.quantidade}${it.unidade?(' '+it.unidade):''}`).join('\n');
+    const msg = `🛒 *NOVA SOLICITAÇÃO DE COMPRA*\n\n📅 *Data da solicitação:* ${hoje}\n📆 *Necessário até:* ${dataFmt}\n🏢 *Filial:* ${filialNome}\n🏗️ *Setor:* ${setorNome}\n👤 *Solicitante:* ${currentUser.nome}\n\n📦 *Itens:*\n${itensTxt}${obs ? `\n\n📝 *Observação:*\n${obs}` : ''}\n\n_Favor lançar no sistema GSB._`;
     const whats = resp.whatsapp.replace(/\D/g,'');
     window.location.href = `https://wa.me/${whats}?text=${encodeURIComponent(msg)}`;
   }catch(e){ /* não bloqueia o fluxo se o whatsapp falhar */ }
