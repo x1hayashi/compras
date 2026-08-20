@@ -238,7 +238,7 @@
     <select id="novaSetor"></select>
 
     <label>Data que precisa dos itens</label>
-    <input id="novaDataNecessidade" type="date" readonly onclick="this.showPicker && this.showPicker()" onkeydown="return false" required>
+    <input id="novaDataNecessidade" type="date" onclick="this.showPicker && this.showPicker()" onfocus="this.showPicker && this.showPicker()" required>
 
     <label>Observação (opcional)</label>
     <textarea id="novaObs" rows="2" placeholder="Ex: compra urgente para colheita"></textarea>
