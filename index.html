@@ -34,6 +34,19 @@
   .subtabs{display:flex; gap:6px; margin-bottom:12px; flex-wrap:wrap;}
   .subtab{padding:7px 10px; border-radius:20px; background:var(--card); border:1px solid var(--border); cursor:pointer; font-weight:600; font-size:11px; color:var(--muted); white-space:nowrap;}
   .subtab.active{background:var(--text); color:#fff; border-color:var(--text);}
+  .stepper{display:flex; align-items:flex-start; overflow-x:auto; padding:14px 4px 18px; -webkit-overflow-scrolling:touch; scroll-snap-type:x proximity;}
+  .step{display:flex; flex-direction:column; align-items:center; flex-shrink:0; width:76px; cursor:pointer; scroll-snap-align:center;}
+  .step-circle{
+    width:34px; height:34px; border-radius:50%; border:2px solid var(--border); background:#fff;
+    display:flex; align-items:center; justify-content:center; font-weight:700; font-size:13px; color:var(--muted);
+    transition:.15s; flex-shrink:0;
+  }
+  .step-label{font-size:11px; color:var(--muted); margin-top:6px; text-align:center; line-height:1.25; font-weight:600; padding:0 2px;}
+  .step.active .step-circle{background:var(--accent); border-color:var(--accent); color:#fff; box-shadow:0 0 0 4px rgba(37,99,235,.15);}
+  .step.active .step-label{color:var(--accent);}
+  .step.step-verde.active .step-circle{background:var(--lancada); border-color:var(--lancada); box-shadow:0 0 0 4px rgba(22,163,74,.15);}
+  .step.step-verde.active .step-label{color:var(--lancada);}
+  .step-line{flex:1; height:2px; background:var(--border); margin-top:16px; min-width:14px;}
   .filial-screen{display:flex; align-items:center; justify-content:center; min-height:80vh; padding:20px;}
   .filial-box{max-width:420px; width:100%; text-align:center;}
   .filial-icon{font-size:48px; margin-bottom:12px;}
@@ -193,14 +206,41 @@
     </div>
     <div id="listItems"></div>
     <div id="historicoView" class="hidden">
-      <div class="subtabs" id="subtabsHistorico">
-        <div class="subtab active" data-grupo="aberto" onclick="setGrupoHistorico('aberto')">Sem aprovação</div>
-        <div class="subtab" data-grupo="aprovada_sem_cotacao" onclick="setGrupoHistorico('aprovada_sem_cotacao')">Aprovada</div>
-        <div class="subtab" data-grupo="em_cotacao" onclick="setGrupoHistorico('em_cotacao')">Em cotação</div>
-        <div class="subtab" data-grupo="cotacao_aprovada" onclick="setGrupoHistorico('cotacao_aprovada')">Cotação aprovada</div>
-        <div class="subtab" data-grupo="pedido_aberto" onclick="setGrupoHistorico('pedido_aberto')">Pedido aberto</div>
-        <div class="subtab" data-grupo="pedido_aprovado_aberto" onclick="setGrupoHistorico('pedido_aprovado_aberto')">Aprovado, não entregue</div>
-        <div class="subtab" data-grupo="pedido_aprovado_concluido" onclick="setGrupoHistorico('pedido_aprovado_concluido')">Concluído</div>
+      <div class="stepper" id="subtabsHistorico">
+        <div class="step step-amarelo active" data-grupo="aberto" onclick="setGrupoHistorico('aberto')">
+          <div class="step-circle">1</div>
+          <div class="step-label">Solicitação</div>
+        </div>
+        <div class="step-line"></div>
+        <div class="step step-verde" data-grupo="aprovada_sem_cotacao" onclick="setGrupoHistorico('aprovada_sem_cotacao')">
+          <div class="step-circle">2</div>
+          <div class="step-label">Aprova solicitação</div>
+        </div>
+        <div class="step-line"></div>
+        <div class="step step-amarelo" data-grupo="em_cotacao" onclick="setGrupoHistorico('em_cotacao')">
+          <div class="step-circle">3</div>
+          <div class="step-label">Faz cotação</div>
+        </div>
+        <div class="step-line"></div>
+        <div class="step step-verde" data-grupo="cotacao_aprovada" onclick="setGrupoHistorico('cotacao_aprovada')">
+          <div class="step-circle">4</div>
+          <div class="step-label">Aprova cotação</div>
+        </div>
+        <div class="step-line"></div>
+        <div class="step step-amarelo" data-grupo="pedido_aberto" onclick="setGrupoHistorico('pedido_aberto')">
+          <div class="step-circle">5</div>
+          <div class="step-label">Faz pedido</div>
+        </div>
+        <div class="step-line"></div>
+        <div class="step step-verde" data-grupo="pedido_aprovado_aberto" onclick="setGrupoHistorico('pedido_aprovado_aberto')">
+          <div class="step-circle">6</div>
+          <div class="step-label">Aprova pedido</div>
+        </div>
+        <div class="step-line"></div>
+        <div class="step step-verde" data-grupo="pedido_aprovado_concluido" onclick="setGrupoHistorico('pedido_aprovado_concluido')">
+          <div class="step-circle">7</div>
+          <div class="step-label">Entrega produto</div>
+        </div>
       </div>
       <div class="card" style="padding:12px;">
         <div style="display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap;">
@@ -487,7 +527,11 @@ async function carregarSolicitacoes(){
 
 function setGrupoHistorico(grupo){
   currentGrupoHistorico = grupo;
-  document.querySelectorAll('#subtabsHistorico .subtab').forEach(t=>t.classList.toggle('active', t.dataset.grupo===grupo));
+  document.querySelectorAll('#subtabsHistorico .step').forEach(t=>{
+    const ativo = t.dataset.grupo===grupo;
+    t.classList.toggle('active', ativo);
+    if (ativo) t.scrollIntoView({ behavior:'smooth', inline:'center', block:'nearest' });
+  });
   renderHistorico();
 }
 
