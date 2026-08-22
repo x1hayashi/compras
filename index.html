@@ -695,7 +695,12 @@ function abrirDetalheHistorico(id){
     return v == null ? '—' : Number(v).toLocaleString('pt-BR', { style:'currency', currency:'BRL' });
   }
   const cotacaoDecidida = s.grupo !== 'em_cotacao';
-  const linhas = s.itens.map(it => {
+  const itensOrdenados = [...s.itens].sort((a, b) => {
+    const totalA = a.valorTotal != null ? a.valorTotal : a.cotacaoValorTotal;
+    const totalB = b.valorTotal != null ? b.valorTotal : b.cotacaoValorTotal;
+    return Number(totalB || 0) - Number(totalA || 0);
+  });
+  const linhas = itensOrdenados.map(it => {
     const propostas = it.propostasCotacao || [];
     const outrasPropostas = propostas.filter(p => !p.aprovado);
     const listaPropostas = outrasPropostas.length
