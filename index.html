@@ -542,7 +542,7 @@ function atualizarListaFuncionarios(){
     .forEach(s => registrarNome(s.solicitante_nome));
   historicoDados
     .filter(s => !s.filialSigla || s.filialSigla === currentFilialSigla)
-    .forEach(s => { registrarNome(s.solicitante); registrarNome(s.comprador); registrarNome(s.responsavelPedido); });
+    .forEach(s => { registrarNome(s.solicitante); registrarNome(s.cotador); registrarNome(s.responsavelCotacao); registrarNome(s.compradorPedido); registrarNome(s.responsavelPedido); });
 
   const sel = document.getElementById('filtroFuncionario');
   const valorAtual = sel.value;
@@ -599,6 +599,40 @@ async function carregarHistorico(){
   }catch(e){ lista.innerHTML = `<p class="muted">Erro ao carregar histórico: ${e.message}</p>`; }
 }
 
+function primeiroNome(n){
+  if (!n) return '';
+  return normalizarNome(n).split(' ')[0];
+}
+// Monta o trecho de pessoas de uma linha, juntando papéis da mesma pessoa: "Cotador e Responsável: Fulano"
+function textoPessoas(papeis){
+  const validos = papeis.filter(p => p.nome);
+  if (!validos.length) return '—';
+  const grupos = []; // [{labels:[...], nome}]
+  validos.forEach(p => {
+    const existente = grupos.find(g => mesmaPessoa(g.nome, p.nome));
+    if (existente) existente.labels.push(p.label);
+    else grupos.push({ labels: [p.label], nome: p.nome });
+  });
+  return grupos.map(g => `${g.labels.join(' e ')}: ${primeiroNome(g.nome)}`).join(' · ');
+}
+function linhaSolicitacao(s){
+  if (!s.numeroSolicitacao) return null;
+  const fmtData = (d) => d ? new Date(d).toLocaleDateString('pt-BR') : '—';
+  return `Nº Solicitação ${s.numeroSolicitacao} · ${fmtData(s.dataSolicitacao)} · ${textoPessoas([{label:'Solicitante', nome:s.solicitante}])}`;
+}
+function linhaCotacao(s){
+  if (!s.numeroCotacao) return null;
+  const fmtData = (d) => d ? new Date(d).toLocaleDateString('pt-BR') : '—';
+  const pessoas = textoPessoas([{label:'Cotador', nome:s.cotador}, {label:'Responsável', nome:s.responsavelCotacao}]);
+  return `Nº Cotação ${s.numeroCotacao} · ${fmtData(s.dataCotacao)} · ${pessoas}${s.fornecedorCotacao ? ' · Fornecedor: ' + s.fornecedorCotacao : ''}`;
+}
+function linhaPedido(s){
+  if (!s.numeroPedido) return null;
+  const fmtData = (d) => d ? new Date(d).toLocaleDateString('pt-BR') : '—';
+  const pessoas = textoPessoas([{label:'Comprador', nome:s.compradorPedido}, {label:'Responsável', nome:s.responsavelPedido}]);
+  return `Nº Pedido ${s.numeroPedido} · ${fmtData(s.dataPedido)} · ${pessoas}${s.fornecedorPedido ? ' · Fornecedor: ' + s.fornecedorPedido : ''}`;
+}
+
 function tituloPorGrupo(s){
   if (s.grupo === 'aberto' || s.grupo === 'aprovada_sem_cotacao'){
     return `Solicitação Nº ${s.numeroSolicitacao || s.idSolicitacaoCompra}`;
@@ -614,7 +648,7 @@ function renderHistorico(){
   const filtrados = historicoDados.filter(s =>
     (!s.filialSigla || s.filialSigla === currentFilialSigla) &&
     s.grupo === currentGrupoHistorico &&
-    (!filtroFuncionarioAtual || [s.solicitante, s.comprador, s.responsavelPedido].some(n => mesmaPessoa(n, filtroFuncionarioAtual)))
+    (!filtroFuncionarioAtual || [s.solicitante, s.cotador, s.responsavelCotacao, s.compradorPedido, s.responsavelPedido].some(n => mesmaPessoa(n, filtroFuncionarioAtual)))
   );
   if (!filtrados.length){
     lista.innerHTML = '<p class="muted" style="text-align:center; margin-top:40px;">Nenhuma solicitação nesse grupo.</p>';
@@ -622,20 +656,13 @@ function renderHistorico(){
   }
   lista.innerHTML = filtrados.map(s=>{
     const corClass = s.cor === 'verde' ? 'card-verde' : 'card-amarelo';
-    const fmtData = (d) => d ? new Date(d).toLocaleDateString('pt-BR') : null;
 
-    const linhaSolic = s.numeroSolicitacao
-      ? `Nº Solicitação ${s.numeroSolicitacao} · ${fmtData(s.dataSolicitacao) || '—'} · ${s.solicitante || '—'}`
-      : null;
-    const linhaCota = s.numeroCotacao
-      ? `Nº Cotação ${s.numeroCotacao} · ${fmtData(s.dataCotacao) || '—'} · ${s.comprador || '—'}${s.fornecedorCotacao ? ' · Fornecedor: ' + s.fornecedorCotacao : ''}`
-      : null;
-    const linhaPedido = s.numeroPedido
-      ? `Nº Pedido ${s.numeroPedido} · ${fmtData(s.dataPedido) || '—'} · ${s.responsavelPedido || '—'}${s.fornecedorPedido ? ' · Fornecedor: ' + s.fornecedorPedido : ''}`
-      : null;
+    const linhaSolic = linhaSolicitacao(s);
+    const linhaCota = linhaCotacao(s);
+    const linhaPed = linhaPedido(s);
 
     const titulo = tituloPorGrupo(s);
-    const linhas = [linhaSolic, linhaCota, linhaPedido].filter(Boolean)
+    const linhas = [linhaSolic, linhaCota, linhaPed].filter(Boolean)
       .map(l => `<div class="muted" style="margin-top:2px;">${l}</div>`).join('');
 
     return `
@@ -654,19 +681,12 @@ function renderHistorico(){
 function abrirDetalheHistorico(id){
   const s = historicoDados.find(x => String(x.idSolicitacaoCompra) === String(id));
   if (!s) return;
-  const fmtData = (d) => d ? new Date(d).toLocaleDateString('pt-BR') : null;
-  const linhaSolic = s.numeroSolicitacao
-    ? `Nº Solicitação ${s.numeroSolicitacao} · ${fmtData(s.dataSolicitacao) || '—'} · ${s.solicitante || '—'}`
-    : null;
-  const linhaCota = s.numeroCotacao
-    ? `Nº Cotação ${s.numeroCotacao} · ${fmtData(s.dataCotacao) || '—'} · ${s.comprador || '—'}${s.fornecedorCotacao ? ' · Fornecedor: ' + s.fornecedorCotacao : ''}`
-    : null;
-  const linhaPedido = s.numeroPedido
-    ? `Nº Pedido ${s.numeroPedido} · ${fmtData(s.dataPedido) || '—'} · ${s.responsavelPedido || '—'}${s.fornecedorPedido ? ' · Fornecedor: ' + s.fornecedorPedido : ''}`
-    : null;
+  const linhaSolic = linhaSolicitacao(s);
+  const linhaCota = linhaCotacao(s);
+  const linhaPed = linhaPedido(s);
   const titulo = tituloPorGrupo(s);
   document.getElementById('histDetalheTitulo').textContent = titulo;
-  document.getElementById('histDetalheSub').innerHTML = [linhaSolic, linhaCota, linhaPedido].filter(Boolean)
+  document.getElementById('histDetalheSub').innerHTML = [linhaSolic, linhaCota, linhaPed].filter(Boolean)
     .map(l => `<div>${l}</div>`).join('');
   const temPrecoCotacao = s.itens.some(it => it.cotacaoValorUnitario != null);
   const temPrecoPedido = s.itens.some(it => it.valorUnitario != null);
