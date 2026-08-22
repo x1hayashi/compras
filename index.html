@@ -505,20 +505,37 @@ function onFiltroFuncionarioChange(){
 function normalizarNome(n){
   return (n || '').trim().toUpperCase().replace(/\s+/g, ' ');
 }
+function tokensNome(n){
+  return normalizarNome(n).split(' ').filter(Boolean);
+}
+// Verifica se os tokens de "curtos" aparecem, na mesma ordem, dentro de "longos"
+// (não precisam ser vizinhos) — cobre "Ricardo Borges" dentro de "Ricardo Gomes Borges",
+// "Ricardo Gomes" dentro de "Ricardo Gomes Borges", etc.
+function ehSubsequencia(curtos, longos){
+  let i = 0;
+  for (const t of longos){ if (i < curtos.length && curtos[i] === t) i++; }
+  return i === curtos.length;
+}
+// Considera dois nomes a mesma pessoa se um for uma "subsequência" de tokens do outro.
+// Nomes de uma palavra só só batem com outro nome idêntico de uma palavra (evita juntar
+// "Ricardo" sozinho com qualquer "Ricardo Alguma Coisa" diferente).
+function mesmaPessoa(a, b){
+  const ta = tokensNome(a), tb = tokensNome(b);
+  if (!ta.length || !tb.length) return false;
+  if (ta.length === 1 || tb.length === 1) return ta.join(' ') === tb.join(' ');
+  return ehSubsequencia(ta, tb) || ehSubsequencia(tb, ta);
+}
 
 function atualizarListaFuncionarios(){
-  // chave = nome normalizado (maiúsculas, sem duplicar espaços) -> melhor forma de exibir (prefere nome não-todo-maiúsculo, mais legível)
-  const nomesPorChave = new Map();
+  // Agrupa nomes parecidos num só "cluster" por pessoa, guardando a forma mais completa encontrada
+  const clusters = []; // [{ melhorNome }]
   function registrarNome(n){
-    if (!n) return;
-    const chave = normalizarNome(n);
-    if (!chave) return;
-    const atual = nomesPorChave.get(chave);
-    // prefere exibir uma versão que não seja tudo maiúsculo (mais legível), senão fica com a primeira encontrada
-    const nEhTudoMaiusculo = n === n.toUpperCase();
-    if (!atual || (nEhTudoMaiusculo === false && atual === atual.toUpperCase())) {
-      nomesPorChave.set(chave, n);
-    }
+    if (!n || !tokensNome(n).length) return;
+    const existente = clusters.find(c => mesmaPessoa(c.melhorNome, n));
+    if (!existente) { clusters.push({ melhorNome: n }); return; }
+    const tokensNovo = n.trim().split(/\s+/).length;
+    const tokensAtual = existente.melhorNome.trim().split(/\s+/).length;
+    if (tokensNovo > tokensAtual) existente.melhorNome = n;
   }
   solicitacoes
     .filter(s => s.filial_sigla ? s.filial_sigla === currentFilialSigla : (s.filial_nome || '').includes(currentFilialSigla))
@@ -529,10 +546,12 @@ function atualizarListaFuncionarios(){
 
   const sel = document.getElementById('filtroFuncionario');
   const valorAtual = sel.value;
-  const chaves = Array.from(nomesPorChave.keys()).sort((a,b) => nomesPorChave.get(a).localeCompare(nomesPorChave.get(b)));
-  sel.innerHTML = '<option value="">Todos</option>' + chaves.map(chave=>`<option value="${chave}">${nomesPorChave.get(chave)}</option>`).join('');
-  sel.value = chaves.includes(valorAtual) ? valorAtual : '';
-  if (!chaves.includes(valorAtual)) filtroFuncionarioAtual = '';
+  // exibe sempre em caixa alta completa, no padrão do GSB
+  const nomes = clusters.map(c => normalizarNome(c.melhorNome)).sort((a,b) => a.localeCompare(b));
+  sel.innerHTML = '<option value="">Todos</option>' + nomes.map(n=>`<option value="${n.replace(/"/g,'&quot;')}">${n}</option>`).join('');
+  const aindaExiste = nomes.includes(valorAtual);
+  sel.value = aindaExiste ? valorAtual : '';
+  if (!aindaExiste) filtroFuncionarioAtual = '';
 }
 
 async function carregarSolicitacoes(){
@@ -595,7 +614,7 @@ function renderHistorico(){
   const filtrados = historicoDados.filter(s =>
     (!s.filialSigla || s.filialSigla === currentFilialSigla) &&
     s.grupo === currentGrupoHistorico &&
-    (!filtroFuncionarioAtual || [s.solicitante, s.comprador, s.responsavelPedido].some(n => normalizarNome(n) === filtroFuncionarioAtual))
+    (!filtroFuncionarioAtual || [s.solicitante, s.comprador, s.responsavelPedido].some(n => mesmaPessoa(n, filtroFuncionarioAtual)))
   );
   if (!filtrados.length){
     lista.innerHTML = '<p class="muted" style="text-align:center; margin-top:40px;">Nenhuma solicitação nesse grupo.</p>';
@@ -711,7 +730,7 @@ function render(){
     const filialOk = s.filial_sigla
       ? s.filial_sigla === currentFilialSigla
       : (s.filial_nome || '').includes(currentFilialSigla); // fallback p/ registros antigos sem filial_sigla
-    const funcOk = !filtroFuncionarioAtual || normalizarNome(s.solicitante_nome) === filtroFuncionarioAtual;
+    const funcOk = !filtroFuncionarioAtual || mesmaPessoa(s.solicitante_nome, filtroFuncionarioAtual);
     return statusOk && filialOk && funcOk;
   });
   const container = document.getElementById('listItems');
