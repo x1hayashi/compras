@@ -502,19 +502,37 @@ function onFiltroFuncionarioChange(){
   else if (currentTab !== 'admin') render();
 }
 
+function normalizarNome(n){
+  return (n || '').trim().toUpperCase().replace(/\s+/g, ' ');
+}
+
 function atualizarListaFuncionarios(){
-  const nomes = new Set();
+  // chave = nome normalizado (maiúsculas, sem duplicar espaços) -> melhor forma de exibir (prefere nome não-todo-maiúsculo, mais legível)
+  const nomesPorChave = new Map();
+  function registrarNome(n){
+    if (!n) return;
+    const chave = normalizarNome(n);
+    if (!chave) return;
+    const atual = nomesPorChave.get(chave);
+    // prefere exibir uma versão que não seja tudo maiúsculo (mais legível), senão fica com a primeira encontrada
+    const nEhTudoMaiusculo = n === n.toUpperCase();
+    if (!atual || (nEhTudoMaiusculo === false && atual === atual.toUpperCase())) {
+      nomesPorChave.set(chave, n);
+    }
+  }
   solicitacoes
     .filter(s => s.filial_sigla ? s.filial_sigla === currentFilialSigla : (s.filial_nome || '').includes(currentFilialSigla))
-    .forEach(s => nomes.add(s.solicitante_nome));
+    .forEach(s => registrarNome(s.solicitante_nome));
   historicoDados
     .filter(s => !s.filialSigla || s.filialSigla === currentFilialSigla)
-    .forEach(s => { nomes.add(s.solicitante); nomes.add(s.comprador); nomes.add(s.responsavelPedido); });
+    .forEach(s => { registrarNome(s.solicitante); registrarNome(s.comprador); registrarNome(s.responsavelPedido); });
+
   const sel = document.getElementById('filtroFuncionario');
   const valorAtual = sel.value;
-  sel.innerHTML = '<option value="">Todos</option>' + Array.from(nomes).filter(Boolean).sort().map(n=>`<option value="${n}">${n}</option>`).join('');
-  sel.value = Array.from(nomes).includes(valorAtual) ? valorAtual : '';
-  if (!Array.from(nomes).includes(valorAtual)) filtroFuncionarioAtual = '';
+  const chaves = Array.from(nomesPorChave.keys()).sort((a,b) => nomesPorChave.get(a).localeCompare(nomesPorChave.get(b)));
+  sel.innerHTML = '<option value="">Todos</option>' + chaves.map(chave=>`<option value="${chave}">${nomesPorChave.get(chave)}</option>`).join('');
+  sel.value = chaves.includes(valorAtual) ? valorAtual : '';
+  if (!chaves.includes(valorAtual)) filtroFuncionarioAtual = '';
 }
 
 async function carregarSolicitacoes(){
@@ -577,7 +595,7 @@ function renderHistorico(){
   const filtrados = historicoDados.filter(s =>
     (!s.filialSigla || s.filialSigla === currentFilialSigla) &&
     s.grupo === currentGrupoHistorico &&
-    (!filtroFuncionarioAtual || [s.solicitante, s.comprador, s.responsavelPedido].includes(filtroFuncionarioAtual))
+    (!filtroFuncionarioAtual || [s.solicitante, s.comprador, s.responsavelPedido].some(n => normalizarNome(n) === filtroFuncionarioAtual))
   );
   if (!filtrados.length){
     lista.innerHTML = '<p class="muted" style="text-align:center; margin-top:40px;">Nenhuma solicitação nesse grupo.</p>';
@@ -693,7 +711,7 @@ function render(){
     const filialOk = s.filial_sigla
       ? s.filial_sigla === currentFilialSigla
       : (s.filial_nome || '').includes(currentFilialSigla); // fallback p/ registros antigos sem filial_sigla
-    const funcOk = !filtroFuncionarioAtual || s.solicitante_nome === filtroFuncionarioAtual;
+    const funcOk = !filtroFuncionarioAtual || normalizarNome(s.solicitante_nome) === filtroFuncionarioAtual;
     return statusOk && filialOk && funcOk;
   });
   const container = document.getElementById('listItems');
