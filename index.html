@@ -199,7 +199,8 @@
         <div class="subtab" data-grupo="em_cotacao" onclick="setGrupoHistorico('em_cotacao')">Em cotação</div>
         <div class="subtab" data-grupo="cotacao_aprovada" onclick="setGrupoHistorico('cotacao_aprovada')">Cotação aprovada</div>
         <div class="subtab" data-grupo="pedido_aberto" onclick="setGrupoHistorico('pedido_aberto')">Pedido aberto</div>
-        <div class="subtab" data-grupo="pedido_aprovado" onclick="setGrupoHistorico('pedido_aprovado')">Pedido aprovado</div>
+        <div class="subtab" data-grupo="pedido_aprovado_aberto" onclick="setGrupoHistorico('pedido_aprovado_aberto')">Aprovado, não entregue</div>
+        <div class="subtab" data-grupo="pedido_aprovado_concluido" onclick="setGrupoHistorico('pedido_aprovado_concluido')">Concluído</div>
       </div>
       <div class="card" style="padding:12px;">
         <div style="display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap;">
@@ -578,6 +579,7 @@ function abrirDetalheHistorico(id){
     .map(l => `<div>${l}</div>`).join('');
   const temPrecoCotacao = s.itens.some(it => it.cotacaoValorUnitario != null);
   const temPrecoPedido = s.itens.some(it => it.valorUnitario != null);
+  const temEntrega = s.itens.some(it => it.pedidoQuantidadeEntregue != null || it.quantidadeEntregue != null);
   function formatarMoeda(v){
     return v == null ? '—' : Number(v).toLocaleString('pt-BR', { style:'currency', currency:'BRL' });
   }
@@ -589,6 +591,7 @@ function abrirDetalheHistorico(id){
           <div class="muted" style="font-size:12px;">${p.fornecedor || 'Fornecedor'}: ${formatarMoeda(p.valorUnitario)} (unit.) — não venceu</div>
         `).join('') + `</div>`
       : '';
+    const entregue = it.pedidoQuantidadeEntregue != null ? it.pedidoQuantidadeEntregue : it.quantidadeEntregue;
     return `
     <tr>
       <td>${it.quantidade}</td>
@@ -596,6 +599,7 @@ function abrirDetalheHistorico(id){
       <td>${it.produto}${listaPropostas}</td>
       ${temPrecoCotacao ? `<td>${formatarMoeda(it.cotacaoValorUnitario)}</td><td>${formatarMoeda(it.cotacaoValorTotal)}</td>` : ''}
       ${temPrecoPedido ? `<td>${formatarMoeda(it.valorUnitario)}</td><td>${formatarMoeda(it.valorTotal)}</td>` : ''}
+      ${temEntrega ? `<td>${entregue != null ? entregue : '—'}</td>` : ''}
     </tr>`;
   }).join('');
   document.getElementById('histDetalheTabela').innerHTML = `
@@ -607,6 +611,7 @@ function abrirDetalheHistorico(id){
           <th style="padding:6px 4px;">Produto</th>
           ${temPrecoCotacao ? `<th style="padding:6px 4px;">Preço Cotação</th><th style="padding:6px 4px;">Total Cotação</th>` : ''}
           ${temPrecoPedido ? `<th style="padding:6px 4px;">Preço Pedido</th><th style="padding:6px 4px;">Total Pedido</th>` : ''}
+          ${temEntrega ? `<th style="padding:6px 4px;">Entregue</th>` : ''}
         </tr>
       </thead>
       <tbody>${linhas}</tbody>
