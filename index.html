@@ -219,7 +219,7 @@
         <div class="step-line"></div>
         <div class="step step-amarelo" data-grupo="em_cotacao" onclick="setGrupoHistorico('em_cotacao')">
           <div class="step-circle">3</div>
-          <div class="step-label">Aprovar cotação</div>
+          <div class="step-label">Em cotação</div>
         </div>
         <div class="step-line"></div>
         <div class="step step-verde" data-grupo="cotacao_aprovada" onclick="setGrupoHistorico('cotacao_aprovada')">
@@ -562,6 +562,16 @@ async function carregarHistorico(){
   }catch(e){ lista.innerHTML = `<p class="muted">Erro ao carregar histórico: ${e.message}</p>`; }
 }
 
+function tituloPorGrupo(s){
+  if (s.grupo === 'aberto' || s.grupo === 'aprovada_sem_cotacao'){
+    return `Solicitação Nº ${s.numeroSolicitacao || s.idSolicitacaoCompra}`;
+  }
+  if (s.grupo === 'em_cotacao' || s.grupo === 'cotacao_aprovada'){
+    return `Cotação nº ${s.numeroCotacao || '—'}`;
+  }
+  return `Pedido nº ${s.numeroPedido || '—'}`;
+}
+
 function renderHistorico(){
   const lista = document.getElementById('historicoLista');
   const filtrados = historicoDados.filter(s =>
@@ -587,7 +597,7 @@ function renderHistorico(){
       ? `Nº Pedido ${s.numeroPedido} · ${fmtData(s.dataPedido) || '—'} · ${s.responsavelPedido || '—'}${s.fornecedorPedido ? ' · Fornecedor: ' + s.fornecedorPedido : ''}`
       : null;
 
-    const titulo = linhaSolic ? `Solicitação` : (linhaCota ? 'Cotação avulsa' : 'Pedido avulso');
+    const titulo = tituloPorGrupo(s);
     const linhas = [linhaSolic, linhaCota, linhaPedido].filter(Boolean)
       .map(l => `<div class="muted" style="margin-top:2px;">${l}</div>`).join('');
 
@@ -617,7 +627,7 @@ function abrirDetalheHistorico(id){
   const linhaPedido = s.numeroPedido
     ? `Nº Pedido ${s.numeroPedido} · ${fmtData(s.dataPedido) || '—'} · ${s.responsavelPedido || '—'}${s.fornecedorPedido ? ' · Fornecedor: ' + s.fornecedorPedido : ''}`
     : null;
-  const titulo = linhaSolic ? `Solicitação` : (linhaCota ? 'Cotação avulsa' : 'Pedido avulso');
+  const titulo = tituloPorGrupo(s);
   document.getElementById('histDetalheTitulo').textContent = titulo;
   document.getElementById('histDetalheSub').innerHTML = [linhaSolic, linhaCota, linhaPedido].filter(Boolean)
     .map(l => `<div>${l}</div>`).join('');
@@ -627,12 +637,13 @@ function abrirDetalheHistorico(id){
   function formatarMoeda(v){
     return v == null ? '—' : Number(v).toLocaleString('pt-BR', { style:'currency', currency:'BRL' });
   }
+  const cotacaoDecidida = s.grupo !== 'em_cotacao';
   const linhas = s.itens.map(it => {
     const propostas = it.propostasCotacao || [];
     const outrasPropostas = propostas.filter(p => !p.aprovado);
     const listaPropostas = outrasPropostas.length
       ? `<div style="margin-top:4px;">` + outrasPropostas.map(p => `
-          <div class="muted" style="font-size:12px;">${p.fornecedor || 'Fornecedor'}: ${formatarMoeda(p.valorUnitario)} (unit.) — não venceu</div>
+          <div class="muted" style="font-size:12px;">${p.fornecedor || 'Fornecedor'}: ${formatarMoeda(p.valorUnitario)} (unit.)${cotacaoDecidida ? ' — não venceu' : ''}</div>
         `).join('') + `</div>`
       : '';
     const entregue = it.pedidoQuantidadeEntregue != null ? it.pedidoQuantidadeEntregue : it.quantidadeEntregue;
