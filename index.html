@@ -754,13 +754,19 @@ function renderMatrizCotacao(s){
       const p = porFornecedor[f];
       if (p && p.valorUnitario != null && Number(p.valorUnitario) > 0 && Number(p.valorUnitario) < menorPreco) menorPreco = Number(p.valorUnitario);
     });
+    const qtdUm = Number(it.quantidade) === 1;
     const celulas = fornecedores.map(f => {
       const p = porFornecedor[f];
       if (!p || p.valorUnitario == null){
-        return `<td style="padding:4px; text-align:center; border-left:1px solid var(--border); color:var(--muted);">—</td><td style="padding:4px; text-align:center; color:var(--muted);">—</td>`;
+        return qtdUm
+          ? `<td colspan="2" style="padding:4px; text-align:center; border-left:1px solid var(--border); color:var(--muted);">—</td>`
+          : `<td style="padding:4px; text-align:center; border-left:1px solid var(--border); color:var(--muted);">—</td><td style="padding:4px; text-align:center; color:var(--muted);">—</td>`;
       }
       const destacar = cotacaoDecidida ? p.aprovado : (Number(p.valorUnitario) > 0 && Number(p.valorUnitario) === menorPreco);
       const estilo = destacar ? 'font-weight:700; color:var(--lancada);' : '';
+      if (qtdUm){
+        return `<td colspan="2" style="padding:4px; text-align:center; border-left:1px solid var(--border); ${estilo}">${formatarMoeda(p.valorTotal)}</td>`;
+      }
       return `<td style="padding:4px; text-align:center; border-left:1px solid var(--border); ${estilo}">${formatarMoeda(p.valorUnitario)}</td><td style="padding:4px; text-align:center; ${estilo}">${formatarMoeda(p.valorTotal)}</td>`;
     }).join('');
     return `<tr>
