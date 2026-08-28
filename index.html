@@ -192,11 +192,17 @@
     <div style="margin-bottom:12px;">
       <button class="filial-badge" onclick="trocarFilial()">🏢 <span id="filialAtivaLabel"></span> · Trocar</button>
     </div>
-    <div style="margin-bottom:12px;">
-      <label style="margin:0 0 4px;">Funcionário / Solicitante</label>
-      <select id="filtroFuncionario" onchange="onFiltroFuncionarioChange()">
-        <option value="">Todos</option>
-      </select>
+    <div style="display:flex; gap:8px; margin-bottom:12px;">
+      <div style="flex:1;">
+        <label style="margin:0 0 4px;">Funcionário / Solicitante</label>
+        <select id="filtroFuncionario" onchange="onFiltroFuncionarioChange()">
+          <option value="">Todos</option>
+        </select>
+      </div>
+      <div style="flex:1;">
+        <label style="margin:0 0 4px;">Produto</label>
+        <input id="filtroProduto" placeholder="Digite parte do nome..." oninput="onFiltroProdutoChange()">
+      </div>
     </div>
     <div class="tabs" id="tabsMain">
       <div class="tab active" data-tab="pendente" onclick="setTab('pendente')">Pendentes</div>
@@ -495,9 +501,16 @@ async function onFilialChange(){
 }
 
 let filtroFuncionarioAtual = '';
+let filtroProdutoAtual = '';
 
 function onFiltroFuncionarioChange(){
   filtroFuncionarioAtual = document.getElementById('filtroFuncionario').value;
+  if (currentTab === 'historico') renderHistorico();
+  else if (currentTab !== 'admin') render();
+}
+
+function onFiltroProdutoChange(){
+  filtroProdutoAtual = document.getElementById('filtroProduto').value.trim().toLowerCase();
   if (currentTab === 'historico') renderHistorico();
   else if (currentTab !== 'admin') render();
 }
@@ -660,7 +673,8 @@ function renderHistorico(){
   const filtrados = historicoDados.filter(s =>
     (!s.filialSigla || s.filialSigla === currentFilialSigla) &&
     s.grupo === currentGrupoHistorico &&
-    (!filtroFuncionarioAtual || [s.solicitante, s.cotador, s.responsavelCotacao, s.compradorPedido, s.responsavelPedido].some(n => mesmaPessoa(n, filtroFuncionarioAtual)))
+    (!filtroFuncionarioAtual || [s.solicitante, s.cotador, s.responsavelCotacao, s.compradorPedido, s.responsavelPedido].some(n => mesmaPessoa(n, filtroFuncionarioAtual))) &&
+    (!filtroProdutoAtual || s.itens.some(it => (it.produto || '').toLowerCase().includes(filtroProdutoAtual)))
   );
   if (!filtrados.length){
     lista.innerHTML = '<p class="muted" style="text-align:center; margin-top:40px;">Nenhuma solicitação nesse grupo.</p>';
@@ -914,7 +928,8 @@ function render(){
       ? s.filial_sigla === currentFilialSigla
       : (s.filial_nome || '').includes(currentFilialSigla); // fallback p/ registros antigos sem filial_sigla
     const funcOk = !filtroFuncionarioAtual || mesmaPessoa(s.solicitante_nome, filtroFuncionarioAtual);
-    return statusOk && filialOk && funcOk;
+    const produtoOk = !filtroProdutoAtual || (s.itens || []).some(it => (it.descricao_produto || '').toLowerCase().includes(filtroProdutoAtual));
+    return statusOk && filialOk && funcOk && produtoOk;
   });
   const container = document.getElementById('listItems');
   if (!filtradas.length){
