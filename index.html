@@ -720,14 +720,33 @@ function renderMatrizCotacao(s){
     return;
   }
 
-  const headerFornecedores = fornecedores.map(f =>
-    `<th colspan="2" style="padding:6px 4px; text-align:center; border-left:1px solid var(--border); white-space:nowrap;">${f}</th>`
-  ).join('');
+  // observação do fornecedor (nota geral dele nessa cotação — prazo, frete etc.), vinda do GSB
+  const obsPorFornecedor = {};
+  fornecedores.forEach(f => {
+    for (const it of s.itens){
+      const prop = (it.propostasCotacao || []).find(p => p.fornecedor === f && p.observacao);
+      if (prop){ obsPorFornecedor[f] = prop.observacao; break; }
+    }
+  });
+
+  const headerFornecedores = fornecedores.map(f => {
+    const obs = obsPorFornecedor[f];
+    const icone = obs ? ` <span title="${obs.replace(/"/g,'&quot;')}" style="cursor:help; color:var(--accent);">ⓘ</span>` : '';
+    return `<th colspan="2" style="padding:6px 4px; text-align:center; border-left:1px solid var(--border); white-space:nowrap;">${f}${icone}</th>`;
+  }).join('');
   const subHeader = fornecedores.map(() =>
     `<th style="padding:4px; font-weight:500; text-align:center; border-left:1px solid var(--border);">Unit.</th><th style="padding:4px; font-weight:500; text-align:center;">Total</th>`
   ).join('');
 
-  const linhas = s.itens.map(it => {
+  function valorRepresentativo(it){
+    if (it.cotacaoValorTotal != null) return Number(it.cotacaoValorTotal);
+    const props = it.propostasCotacao || [];
+    if (!props.length) return 0;
+    return Math.max(...props.map(p => Number(p.valorTotal || 0)));
+  }
+  const itensOrdenados = [...s.itens].sort((a, b) => valorRepresentativo(b) - valorRepresentativo(a));
+
+  const linhas = itensOrdenados.map(it => {
     const porFornecedor = {};
     (it.propostasCotacao || []).forEach(p => { if (p.fornecedor) porFornecedor[p.fornecedor] = p; });
     let menorPreco = Infinity;
