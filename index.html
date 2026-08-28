@@ -199,9 +199,10 @@
           <option value="">Todos</option>
         </select>
       </div>
-      <div style="flex:1;">
+      <div style="flex:1; position:relative;">
         <label style="margin:0 0 4px;">Produto</label>
-        <input id="filtroProduto" placeholder="Digite parte do nome..." oninput="onFiltroProdutoChange()">
+        <input id="filtroProduto" placeholder="Digite parte do nome..." oninput="onFiltroProdutoChange()" style="padding-right:32px;">
+        <button id="btnLimparProduto" onclick="limparFiltroProduto()" class="hidden" title="Limpar" style="position:absolute; right:6px; top:29px; background:none; border:none; color:var(--muted); font-size:16px; cursor:pointer; padding:4px 6px; line-height:1;">✕</button>
       </div>
     </div>
     <div class="tabs" id="tabsMain">
@@ -511,8 +512,14 @@ function onFiltroFuncionarioChange(){
 
 function onFiltroProdutoChange(){
   filtroProdutoAtual = document.getElementById('filtroProduto').value.trim().toLowerCase();
+  document.getElementById('btnLimparProduto').classList.toggle('hidden', !filtroProdutoAtual);
   if (currentTab === 'historico') renderHistorico();
   else if (currentTab !== 'admin') render();
+}
+
+function limparFiltroProduto(){
+  document.getElementById('filtroProduto').value = '';
+  onFiltroProdutoChange();
 }
 
 function normalizarNome(n){
@@ -599,17 +606,23 @@ function inicializarDatasHistorico(){
   }
 }
 
+let historicoCarregando = false;
+
 async function carregarHistorico(){
   inicializarDatasHistorico();
-  const lista = document.getElementById('historicoLista');
-  lista.innerHTML = '<p class="muted" style="text-align:center; margin-top:20px;">Carregando...</p>';
+  historicoCarregando = true;
+  renderHistorico();
   try{
     const inicio = document.getElementById('histDataInicio').value;
     const fim = document.getElementById('histDataFim').value;
     historicoDados = await api(`/gsb/historico-solicitacoes?inicio=${inicio}&fim=${fim}`);
     atualizarListaFuncionarios();
+    historicoCarregando = false;
     renderHistorico();
-  }catch(e){ lista.innerHTML = `<p class="muted">Erro ao carregar histórico: ${e.message}</p>`; }
+  }catch(e){
+    historicoCarregando = false;
+    document.getElementById('historicoLista').innerHTML = `<p class="muted">Erro ao carregar histórico: ${e.message}</p>`;
+  }
 }
 
 function primeiroNome(n){
@@ -670,6 +683,10 @@ function tituloPorGrupo(s){
 
 function renderHistorico(){
   const lista = document.getElementById('historicoLista');
+  if (historicoCarregando){
+    lista.innerHTML = '<p class="muted" style="text-align:center; margin-top:20px;">Carregando...</p>';
+    return;
+  }
   const filtrados = historicoDados.filter(s =>
     (!s.filialSigla || s.filialSigla === currentFilialSigla) &&
     s.grupo === currentGrupoHistorico &&
