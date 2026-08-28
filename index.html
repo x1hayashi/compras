@@ -705,6 +705,7 @@ function renderHistorico(){
 }
 
 function renderMatrizCotacao(s){
+  const cotacaoDecidida = s.grupo !== 'em_cotacao';
   function formatarMoeda(v){
     return v == null ? '—' : Number(v).toLocaleString('pt-BR', { style:'currency', currency:'BRL' });
   }
@@ -732,15 +733,15 @@ function renderMatrizCotacao(s){
     let menorPreco = Infinity;
     fornecedores.forEach(f => {
       const p = porFornecedor[f];
-      if (p && p.valorUnitario != null && Number(p.valorUnitario) < menorPreco) menorPreco = Number(p.valorUnitario);
+      if (p && p.valorUnitario != null && Number(p.valorUnitario) > 0 && Number(p.valorUnitario) < menorPreco) menorPreco = Number(p.valorUnitario);
     });
     const celulas = fornecedores.map(f => {
       const p = porFornecedor[f];
       if (!p || p.valorUnitario == null){
         return `<td style="padding:4px; text-align:center; border-left:1px solid var(--border); color:var(--muted);">—</td><td style="padding:4px; text-align:center; color:var(--muted);">—</td>`;
       }
-      const ehMenor = Number(p.valorUnitario) === menorPreco;
-      const estilo = ehMenor ? 'font-weight:700; color:var(--lancada);' : '';
+      const destacar = cotacaoDecidida ? p.aprovado : (Number(p.valorUnitario) > 0 && Number(p.valorUnitario) === menorPreco);
+      const estilo = destacar ? 'font-weight:700; color:var(--lancada);' : '';
       return `<td style="padding:4px; text-align:center; border-left:1px solid var(--border); ${estilo}">${formatarMoeda(p.valorUnitario)}</td><td style="padding:4px; text-align:center; ${estilo}">${formatarMoeda(p.valorTotal)}</td>`;
     }).join('');
     return `<tr>
@@ -768,7 +769,7 @@ function renderMatrizCotacao(s){
         <tbody>${linhas}</tbody>
       </table>
     </div>
-    <p class="muted" style="font-size:12px; margin-top:8px;">Preço em <strong style="color:var(--lancada);">verde</strong> é o menor cotado para o item.</p>`;
+    <p class="muted" style="font-size:12px; margin-top:8px;">Preço em <strong style="color:var(--lancada);">verde</strong> é ${cotacaoDecidida ? 'o fornecedor aprovado para o item' : 'o menor cotado para o item'}.</p>`;
 }
 
 function abrirDetalheHistorico(id){
@@ -782,7 +783,7 @@ function abrirDetalheHistorico(id){
   document.getElementById('histDetalheSub').innerHTML = [linhaSolic, linhaCota, linhaPed].filter(Boolean)
     .map(l => `<div>${l}</div>`).join('');
 
-  if (s.grupo === 'em_cotacao'){
+  if (s.grupo === 'em_cotacao' || s.grupo === 'cotacao_aprovada'){
     renderMatrizCotacao(s);
     document.getElementById('overlayHistDetalhe').classList.add('open');
     return;
