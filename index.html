@@ -47,6 +47,13 @@
   .step.step-verde.active .step-circle{background:var(--lancada); border-color:var(--lancada); box-shadow:0 0 0 4px rgba(22,163,74,.15);}
   .step.step-verde.active .step-label{color:var(--lancada);}
   .step-line{flex:1; height:2px; background:var(--border); margin-top:16px; min-width:14px;}
+  .step-circle-wrap{position:relative;}
+  .step-badge{
+    position:absolute; top:-6px; right:-8px; background:var(--text); color:#fff;
+    font-size:10px; font-weight:700; min-width:17px; height:17px; border-radius:9px;
+    display:flex; align-items:center; justify-content:center; padding:0 3px; line-height:1;
+  }
+  .step-badge.zero{display:none;}
   .filial-screen{display:flex; align-items:center; justify-content:center; min-height:80vh; padding:20px;}
   .filial-box{max-width:420px; width:100%; text-align:center;}
   .filial-icon{font-size:48px; margin-bottom:12px;}
@@ -215,37 +222,37 @@
     <div id="historicoView" class="hidden">
       <div class="stepper" id="subtabsHistorico">
         <div class="step step-amarelo active" data-grupo="aberto" onclick="setGrupoHistorico('aberto')">
-          <div class="step-circle">1</div>
+          <div class="step-circle-wrap"><div class="step-circle">1</div><span class="step-badge zero" id="stepBadge-aberto">0</span></div>
           <div class="step-label">Aprovar solicitação</div>
         </div>
         <div class="step-line"></div>
         <div class="step step-verde" data-grupo="aprovada_sem_cotacao" onclick="setGrupoHistorico('aprovada_sem_cotacao')">
-          <div class="step-circle">2</div>
+          <div class="step-circle-wrap"><div class="step-circle">2</div><span class="step-badge zero" id="stepBadge-aprovada_sem_cotacao">0</span></div>
           <div class="step-label">Fazer cotação</div>
         </div>
         <div class="step-line"></div>
         <div class="step step-amarelo" data-grupo="em_cotacao" onclick="setGrupoHistorico('em_cotacao')">
-          <div class="step-circle">3</div>
+          <div class="step-circle-wrap"><div class="step-circle">3</div><span class="step-badge zero" id="stepBadge-em_cotacao">0</span></div>
           <div class="step-label">Em cotação</div>
         </div>
         <div class="step-line"></div>
         <div class="step step-verde" data-grupo="cotacao_aprovada" onclick="setGrupoHistorico('cotacao_aprovada')">
-          <div class="step-circle">4</div>
+          <div class="step-circle-wrap"><div class="step-circle">4</div><span class="step-badge zero" id="stepBadge-cotacao_aprovada">0</span></div>
           <div class="step-label">Fazer pedido</div>
         </div>
         <div class="step-line"></div>
         <div class="step step-amarelo" data-grupo="pedido_aberto" onclick="setGrupoHistorico('pedido_aberto')">
-          <div class="step-circle">5</div>
+          <div class="step-circle-wrap"><div class="step-circle">5</div><span class="step-badge zero" id="stepBadge-pedido_aberto">0</span></div>
           <div class="step-label">Aprovar pedido</div>
         </div>
         <div class="step-line"></div>
         <div class="step step-verde" data-grupo="pedido_aprovado_aberto" onclick="setGrupoHistorico('pedido_aprovado_aberto')">
-          <div class="step-circle">6</div>
+          <div class="step-circle-wrap"><div class="step-circle">6</div><span class="step-badge zero" id="stepBadge-pedido_aprovado_aberto">0</span></div>
           <div class="step-label">Aguardando entrega</div>
         </div>
         <div class="step-line"></div>
         <div class="step step-verde" data-grupo="pedido_aprovado_concluido" onclick="setGrupoHistorico('pedido_aprovado_concluido')">
-          <div class="step-circle">7</div>
+          <div class="step-circle-wrap"><div class="step-circle">7</div><span class="step-badge zero" id="stepBadge-pedido_aprovado_concluido">0</span></div>
           <div class="step-label">Concluído</div>
         </div>
       </div>
@@ -681,12 +688,32 @@ function tituloPorGrupo(s){
   return `Pedido nº ${s.numeroPedido || '—'}`;
 }
 
+const GRUPOS_HISTORICO = ['aberto','aprovada_sem_cotacao','em_cotacao','cotacao_aprovada','pedido_aberto','pedido_aprovado_aberto','pedido_aprovado_concluido'];
+
+function atualizarContadoresStepper(){
+  const contagens = {};
+  GRUPOS_HISTORICO.forEach(g => contagens[g] = 0);
+  historicoDados.forEach(s => {
+    if (s.filialSigla && s.filialSigla !== currentFilialSigla) return;
+    if (filtroFuncionarioAtual && ![s.solicitante, s.cotador, s.responsavelCotacao, s.compradorPedido, s.responsavelPedido].some(n => mesmaPessoa(n, filtroFuncionarioAtual))) return;
+    if (filtroProdutoAtual && !s.itens.some(it => (it.produto || '').toLowerCase().includes(filtroProdutoAtual))) return;
+    if (contagens[s.grupo] != null) contagens[s.grupo]++;
+  });
+  GRUPOS_HISTORICO.forEach(g => {
+    const el = document.getElementById('stepBadge-' + g);
+    if (!el) return;
+    el.textContent = contagens[g];
+    el.classList.toggle('zero', contagens[g] === 0);
+  });
+}
+
 function renderHistorico(){
   const lista = document.getElementById('historicoLista');
   if (historicoCarregando){
     lista.innerHTML = '<p class="muted" style="text-align:center; margin-top:20px;">Carregando...</p>';
     return;
   }
+  atualizarContadoresStepper();
   const filtrados = historicoDados.filter(s =>
     (!s.filialSigla || s.filialSigla === currentFilialSigla) &&
     s.grupo === currentGrupoHistorico &&
