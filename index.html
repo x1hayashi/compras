@@ -624,13 +624,25 @@ function linhaCotacao(s){
   if (!s.numeroCotacao) return null;
   const fmtData = (d) => d ? new Date(d).toLocaleDateString('pt-BR') : '—';
   const pessoas = textoPessoas([{label:'Cotador', nome:s.cotador}, {label:'Responsável', nome:s.responsavelCotacao}]);
-  return `Nº Cotação ${s.numeroCotacao} · ${fmtData(s.dataCotacao)} · ${pessoas}${s.fornecedorCotacao ? ' · Fornecedor: ' + s.fornecedorCotacao : ''}`;
+  const mostrarFornecedor = s.grupo !== 'em_cotacao' && s.fornecedorCotacao;
+  return `Nº Cotação ${s.numeroCotacao} · ${fmtData(s.dataCotacao)} · ${pessoas}${mostrarFornecedor ? ' · Fornecedor: ' + s.fornecedorCotacao : ''}`;
 }
 function linhaPedido(s){
   if (!s.numeroPedido) return null;
   const fmtData = (d) => d ? new Date(d).toLocaleDateString('pt-BR') : '—';
   const pessoas = textoPessoas([{label:'Comprador', nome:s.compradorPedido}, {label:'Responsável', nome:s.responsavelPedido}]);
   return `Nº Pedido ${s.numeroPedido} · ${fmtData(s.dataPedido)} · ${pessoas}${s.fornecedorPedido ? ' · Fornecedor: ' + s.fornecedorPedido : ''}`;
+}
+function percentualEntrega(s){
+  let pedida = 0, entregue = 0;
+  s.itens.forEach(it => {
+    const p = Number(it.pedidoQuantidadePedida != null ? it.pedidoQuantidadePedida : it.quantidade || 0);
+    const e = Number(it.pedidoQuantidadeEntregue != null ? it.pedidoQuantidadeEntregue : it.quantidadeEntregue || 0);
+    pedida += p;
+    entregue += Math.min(e, p); // não deixa passar de 100% por item
+  });
+  if (!pedida) return 0;
+  return Math.round((entregue / pedida) * 100);
 }
 
 function tituloPorGrupo(s){
@@ -665,6 +677,19 @@ function renderHistorico(){
     const linhas = [linhaSolic, linhaCota, linhaPed].filter(Boolean)
       .map(l => `<div class="muted" style="margin-top:2px;">${l}</div>`).join('');
 
+    const barraEntrega = s.grupo === 'pedido_aprovado_aberto' ? (() => {
+      const pct = percentualEntrega(s);
+      return `
+        <div style="margin-top:8px;">
+          <div style="display:flex; justify-content:space-between; font-size:11px; color:var(--muted); margin-bottom:3px;">
+            <span>Entregue</span><span>${pct}%</span>
+          </div>
+          <div style="background:var(--border); border-radius:20px; height:6px; overflow:hidden;">
+            <div style="width:${pct}%; background:var(--pendente); height:100%; border-radius:20px;"></div>
+          </div>
+        </div>`;
+    })() : '';
+
     return `
       <div class="card ${corClass}" style="cursor:pointer;" onclick="abrirDetalheHistorico('${s.idSolicitacaoCompra}')">
         <div class="top-row">
@@ -674,6 +699,7 @@ function renderHistorico(){
           </div>
           <span class="muted">${s.itens.length} ${s.itens.length===1?'item':'itens'} ›</span>
         </div>
+        ${barraEntrega}
       </div>`;
   }).join('');
 }
