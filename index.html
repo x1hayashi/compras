@@ -796,7 +796,22 @@ function abrirDetalheHistorico(id){
     return v == null ? '—' : Number(v).toLocaleString('pt-BR', { style:'currency', currency:'BRL' });
   }
   const cotacaoDecidida = s.grupo !== 'em_cotacao';
+  const emEspera = s.grupo === 'pedido_aprovado_aberto';
+
+  function itemQtdEntregue(it){
+    const pedida = Number(it.pedidoQuantidadePedida != null ? it.pedidoQuantidadePedida : it.quantidade || 0);
+    const entregue = Number(it.pedidoQuantidadeEntregue != null ? it.pedidoQuantidadeEntregue : it.quantidadeEntregue || 0);
+    return { pedida, entregue };
+  }
+
   const itensOrdenados = [...s.itens].sort((a, b) => {
+    if (emEspera){
+      // primeiro o que falta mais entregar (menor % concluído), pra ficar fácil de achar
+      const ea = itemQtdEntregue(a), eb = itemQtdEntregue(b);
+      const pctA = ea.pedida > 0 ? ea.entregue / ea.pedida : 1;
+      const pctB = eb.pedida > 0 ? eb.entregue / eb.pedida : 1;
+      if (pctA !== pctB) return pctA - pctB;
+    }
     const totalA = a.valorTotal != null ? a.valorTotal : a.cotacaoValorTotal;
     const totalB = b.valorTotal != null ? b.valorTotal : b.cotacaoValorTotal;
     return Number(totalB || 0) - Number(totalA || 0);
@@ -809,7 +824,24 @@ function abrirDetalheHistorico(id){
           <div class="muted" style="font-size:12px;">${p.fornecedor || 'Fornecedor'}: ${formatarMoeda(p.valorUnitario)} (unit.)${cotacaoDecidida ? ' — não venceu' : ''}</div>
         `).join('') + `</div>`
       : '';
-    const entregue = it.pedidoQuantidadeEntregue != null ? it.pedidoQuantidadeEntregue : it.quantidadeEntregue;
+    let celulaEntrega = '';
+    if (temEntrega){
+      if (emEspera){
+        const { pedida, entregue } = itemQtdEntregue(it);
+        const pct = pedida > 0 ? Math.min(100, Math.round((entregue / pedida) * 100)) : 0;
+        const completo = pedida > 0 && entregue >= pedida;
+        const cor = completo ? 'var(--lancada)' : 'var(--pendente)';
+        celulaEntrega = `<td style="min-width:110px;">
+          <div style="font-size:12px; color:${cor}; font-weight:600; margin-bottom:3px;">${entregue}/${pedida} (${pct}%)</div>
+          <div style="background:var(--border); border-radius:20px; height:5px; overflow:hidden;">
+            <div style="width:${pct}%; background:${cor}; height:100%; border-radius:20px;"></div>
+          </div>
+        </td>`;
+      } else {
+        const entregue = it.pedidoQuantidadeEntregue != null ? it.pedidoQuantidadeEntregue : it.quantidadeEntregue;
+        celulaEntrega = `<td>${entregue != null ? entregue : '—'}</td>`;
+      }
+    }
     return `
     <tr>
       <td>${it.quantidade}</td>
@@ -817,7 +849,7 @@ function abrirDetalheHistorico(id){
       <td>${it.produto}${listaPropostas}</td>
       ${temPrecoCotacao ? `<td>${formatarMoeda(it.cotacaoValorUnitario)}</td><td>${formatarMoeda(it.cotacaoValorTotal)}</td>` : ''}
       ${temPrecoPedido ? `<td>${formatarMoeda(it.valorUnitario)}</td><td>${formatarMoeda(it.valorTotal)}</td>` : ''}
-      ${temEntrega ? `<td>${entregue != null ? entregue : '—'}</td>` : ''}
+      ${celulaEntrega}
     </tr>`;
   }).join('');
   document.getElementById('histDetalheTabela').innerHTML = `
