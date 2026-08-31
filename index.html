@@ -764,6 +764,8 @@ function renderHistorico(){
 
 function renderMatrizCotacao(s){
   const cotacaoDecidida = s.grupo !== 'em_cotacao';
+  const estagioPedido = ['pedido_aberto','pedido_aprovado_aberto','pedido_aprovado_concluido'].includes(s.grupo);
+  const emEspera = s.grupo === 'pedido_aprovado_aberto';
   function formatarMoeda(v){
     return v == null ? '—' : Number(v).toLocaleString('pt-BR', { style:'currency', currency:'BRL' });
   }
@@ -802,7 +804,21 @@ function renderMatrizCotacao(s){
     if (!props.length) return 0;
     return Math.max(...props.map(p => Number(p.valorTotal || 0)));
   }
-  const itensOrdenados = [...s.itens].sort((a, b) => valorRepresentativo(b) - valorRepresentativo(a));
+  function itemQtdEntregue(it){
+    const pedida = Number(it.pedidoQuantidadePedida != null ? it.pedidoQuantidadePedida : it.quantidade || 0);
+    const entregue = Number(it.pedidoQuantidadeEntregue != null ? it.pedidoQuantidadeEntregue : it.quantidadeEntregue || 0);
+    return { pedida, entregue };
+  }
+
+  const itensOrdenados = [...s.itens].sort((a, b) => {
+    if (emEspera){
+      const ea = itemQtdEntregue(a), eb = itemQtdEntregue(b);
+      const pctA = ea.pedida > 0 ? ea.entregue / ea.pedida : 1;
+      const pctB = eb.pedida > 0 ? eb.entregue / eb.pedida : 1;
+      if (pctA !== pctB) return pctA - pctB;
+    }
+    return valorRepresentativo(b) - valorRepresentativo(a);
+  });
 
   const linhas = itensOrdenados.map(it => {
     const porFornecedor = {};
@@ -827,11 +843,32 @@ function renderMatrizCotacao(s){
       }
       return `<td style="padding:4px; text-align:center; border-left:1px solid var(--border); ${estilo}">${formatarMoeda(p.valorUnitario)}</td><td style="padding:4px; text-align:center; ${estilo}">${formatarMoeda(p.valorTotal)}</td>`;
     }).join('');
+
+    let celulaEntrega = '';
+    if (estagioPedido){
+      if (emEspera){
+        const { pedida, entregue } = itemQtdEntregue(it);
+        const pct = pedida > 0 ? Math.min(100, Math.round((entregue / pedida) * 100)) : 0;
+        const completo = pedida > 0 && entregue >= pedida;
+        const cor = completo ? 'var(--lancada)' : 'var(--pendente)';
+        celulaEntrega = `<td style="padding:4px; border-left:1px solid var(--border); min-width:110px;">
+          <div style="font-size:12px; color:${cor}; font-weight:600; margin-bottom:3px; text-align:center;">${entregue}/${pedida} (${pct}%)</div>
+          <div style="background:var(--border); border-radius:20px; height:5px; overflow:hidden;">
+            <div style="width:${pct}%; background:${cor}; height:100%; border-radius:20px;"></div>
+          </div>
+        </td>`;
+      } else {
+        const entregue = it.pedidoQuantidadeEntregue != null ? it.pedidoQuantidadeEntregue : it.quantidadeEntregue;
+        celulaEntrega = `<td style="padding:4px; text-align:center; border-left:1px solid var(--border);">${entregue != null ? entregue : '—'}</td>`;
+      }
+    }
+
     return `<tr>
       <td style="padding:6px 4px; white-space:nowrap;">${it.quantidade}</td>
       <td style="padding:6px 4px; white-space:nowrap;">${it.unidade || '—'}</td>
       <td style="padding:6px 4px;">${it.produto}</td>
       ${celulas}
+      ${celulaEntrega}
     </tr>`;
   }).join('');
 
@@ -844,6 +881,7 @@ function renderMatrizCotacao(s){
             <th style="padding:6px 4px;" rowspan="2">Unid.</th>
             <th style="padding:6px 4px;" rowspan="2">Produto</th>
             ${headerFornecedores}
+            ${estagioPedido ? `<th style="padding:6px 4px; border-left:1px solid var(--border);" rowspan="2">Entregue</th>` : ''}
           </tr>
           <tr style="color:var(--muted); font-size:11px;">
             ${subHeader}
@@ -866,7 +904,9 @@ function abrirDetalheHistorico(id){
   document.getElementById('histDetalheSub').innerHTML = [linhaSolic, linhaCota, linhaPed].filter(Boolean)
     .map(l => `<div>${l}</div>`).join('');
 
-  if (s.grupo === 'em_cotacao' || s.grupo === 'cotacao_aprovada'){
+  const estagiosPedido = ['pedido_aberto','pedido_aprovado_aberto','pedido_aprovado_concluido'];
+  const temCotacaoAssociada = s.itens.some(it => (it.propostasCotacao || []).length > 0);
+  if (s.grupo === 'em_cotacao' || s.grupo === 'cotacao_aprovada' || (estagiosPedido.includes(s.grupo) && temCotacaoAssociada)){
     renderMatrizCotacao(s);
     document.getElementById('overlayHistDetalhe').classList.add('open');
     return;
