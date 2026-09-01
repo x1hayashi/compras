@@ -125,6 +125,34 @@
   .admin-user{display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid var(--border);}
   .admin-user:last-child{border-bottom:none;}
   .admin-user-actions{display:flex; gap:6px; flex-wrap:wrap; margin-top:6px;}
+
+  /* ── DESKTOP: telas largas ganham mais espaço e cards em grade ── */
+  @media (min-width: 860px){
+    #app{max-width:1200px; padding:24px 32px;}
+    header{padding:16px 32px;}
+
+    /* lista de solicitações e histórico viram grade de cartões lado a lado */
+    #listItems, #historicoLista{
+      display:grid; grid-template-columns:repeat(auto-fill, minmax(360px, 1fr)); gap:12px; align-items:start;
+    }
+    #listItems .card, #historicoLista .card{margin-bottom:0;}
+
+    /* filtros (funcionário / produto) não precisam esticar até a borda */
+    #listView > div:nth-child(2){max-width:640px;}
+
+    /* modais viram diálogo centralizado, não gaveta subindo de baixo */
+    .overlay{align-items:center; justify-content:center;}
+    .sheet{
+      width:min(640px, 92vw); max-height:85vh; border-radius:16px;
+      box-shadow:0 20px 60px rgba(0,0,0,.25);
+    }
+
+    /* botão flutuante fica um pouco mais recuado da borda */
+    .fab{right:40px; bottom:32px;}
+
+    /* stepper não precisa espremer tanto, dá mais respiro */
+    .step{width:96px;}
+  }
 </style>
 </head>
 <body>
