@@ -836,10 +836,10 @@ function renderMatrizCotacao(s){
   const headerFornecedores = fornecedores.map(f => {
     const obs = obsPorFornecedor[f];
     const icone = obs ? ` <span title="${obs.replace(/"/g,'&quot;')}" style="cursor:help; color:var(--accent);">ⓘ</span>` : '';
-    return `<th colspan="2" style="padding:6px 4px; text-align:center; border-left:1px solid var(--border); white-space:nowrap; height:32px; box-sizing:border-box; position:sticky; top:0; z-index:3; background:var(--card);">${f}${icone}</th>`;
+    return `<th colspan="2" style="padding:6px 4px; text-align:center; border-left:1px solid var(--border); max-width:150px; white-space:normal; word-break:break-word; height:44px; box-sizing:border-box; position:sticky; top:0; z-index:3; background:var(--card);">${f}${icone}</th>`;
   }).join('');
   const subHeader = fornecedores.map(() =>
-    `<th style="padding:4px; font-weight:500; text-align:center; border-left:1px solid var(--border); position:sticky; top:32px; z-index:3; background:var(--card);">Unit.</th><th style="padding:4px; font-weight:500; text-align:center; position:sticky; top:32px; z-index:3; background:var(--card);">Total</th>`
+    `<th style="padding:4px; font-weight:500; text-align:center; border-left:1px solid var(--border); position:sticky; top:44px; z-index:3; background:var(--card);">Unit.</th><th style="padding:4px; font-weight:500; text-align:center; position:sticky; top:44px; z-index:3; background:var(--card);">Total</th>`
   ).join('');
 
   function valorRepresentativo(it){
@@ -941,7 +941,7 @@ function renderMatrizCotacao(s){
 
   container.innerHTML = `
     <div style="overflow-x:auto;">
-      <table style="border-collapse:collapse; font-size:13px; min-width:100%;">
+      <table style="border-collapse:separate; border-spacing:0; font-size:13px; min-width:100%;">
         <thead>
           <tr style="text-align:left; color:var(--muted); font-size:12px;">
             <th style="padding:6px 4px; position:sticky; top:0; z-index:3; background:var(--card);" rowspan="2">Qtd.</th>
