@@ -230,17 +230,22 @@
     <div style="margin-bottom:12px;">
       <button class="filial-badge" onclick="trocarFilial()">🏢 <span id="filialAtivaLabel"></span> · Trocar</button>
     </div>
-    <div style="display:flex; gap:8px; margin-bottom:12px;">
-      <div style="flex:1;">
+    <div style="display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
+      <div style="flex:1; min-width:160px;">
         <label style="margin:0 0 4px;">Funcionário / Solicitante</label>
         <select id="filtroFuncionario" onchange="onFiltroFuncionarioChange()">
           <option value="">Todos</option>
         </select>
       </div>
-      <div style="flex:1; position:relative;">
+      <div style="flex:1; min-width:160px; position:relative;">
         <label style="margin:0 0 4px;">Produto</label>
         <input id="filtroProduto" placeholder="Digite parte do nome..." oninput="onFiltroProdutoChange()" style="padding-right:32px;">
         <button id="btnLimparProduto" onclick="limparFiltroProduto()" class="hidden" title="Limpar" style="position:absolute; right:6px; top:29px; background:none; border:none; color:var(--muted); font-size:16px; cursor:pointer; padding:4px 6px; line-height:1;">✕</button>
+      </div>
+      <div style="flex:1; min-width:160px; position:relative;">
+        <label style="margin:0 0 4px;">Fornecedor</label>
+        <input id="filtroFornecedor" placeholder="Digite parte do nome..." oninput="onFiltroFornecedorChange()" style="padding-right:32px;">
+        <button id="btnLimparFornecedor" onclick="limparFiltroFornecedor()" class="hidden" title="Limpar" style="position:absolute; right:6px; top:29px; background:none; border:none; color:var(--muted); font-size:16px; cursor:pointer; padding:4px 6px; line-height:1;">✕</button>
       </div>
     </div>
     <div class="tabs" id="tabsMain">
@@ -546,6 +551,7 @@ async function onFilialChange(){
 
 let filtroFuncionarioAtual = '';
 let filtroProdutoAtual = '';
+let filtroFornecedorAtual = '';
 
 function onFiltroFuncionarioChange(){
   filtroFuncionarioAtual = document.getElementById('filtroFuncionario').value;
@@ -563,6 +569,24 @@ function onFiltroProdutoChange(){
 function limparFiltroProduto(){
   document.getElementById('filtroProduto').value = '';
   onFiltroProdutoChange();
+}
+
+function onFiltroFornecedorChange(){
+  filtroFornecedorAtual = document.getElementById('filtroFornecedor').value.trim().toLowerCase();
+  document.getElementById('btnLimparFornecedor').classList.toggle('hidden', !filtroFornecedorAtual);
+  // fornecedor só existe nos dados do Histórico (GSB); nas outras abas o filtro fica visível mas sem efeito
+  if (currentTab === 'historico') renderHistorico();
+}
+
+function limparFiltroFornecedor(){
+  document.getElementById('filtroFornecedor').value = '';
+  onFiltroFornecedorChange();
+}
+
+function solicitacaoTemFornecedor(s, termo){
+  if ((s.fornecedorCotacao || '').toLowerCase().includes(termo)) return true;
+  if ((s.fornecedorPedido || '').toLowerCase().includes(termo)) return true;
+  return s.itens.some(it => (it.propostasCotacao || []).some(p => (p.fornecedor || '').toLowerCase().includes(termo)));
 }
 
 function normalizarNome(n){
@@ -741,6 +765,7 @@ function atualizarContadoresStepper(){
     if (s.filialSigla && s.filialSigla !== currentFilialSigla) return;
     if (filtroFuncionarioAtual && ![s.solicitante, s.cotador, s.responsavelCotacao, s.compradorPedido, s.responsavelPedido].some(n => mesmaPessoa(n, filtroFuncionarioAtual))) return;
     if (filtroProdutoAtual && !s.itens.some(it => (it.produto || '').toLowerCase().includes(filtroProdutoAtual))) return;
+    if (filtroFornecedorAtual && !solicitacaoTemFornecedor(s, filtroFornecedorAtual)) return;
     if (contagens[s.grupo] != null) contagens[s.grupo]++;
   });
   GRUPOS_HISTORICO.forEach(g => {
@@ -762,7 +787,8 @@ function renderHistorico(){
     (!s.filialSigla || s.filialSigla === currentFilialSigla) &&
     s.grupo === currentGrupoHistorico &&
     (!filtroFuncionarioAtual || [s.solicitante, s.cotador, s.responsavelCotacao, s.compradorPedido, s.responsavelPedido].some(n => mesmaPessoa(n, filtroFuncionarioAtual))) &&
-    (!filtroProdutoAtual || s.itens.some(it => (it.produto || '').toLowerCase().includes(filtroProdutoAtual)))
+    (!filtroProdutoAtual || s.itens.some(it => (it.produto || '').toLowerCase().includes(filtroProdutoAtual))) &&
+    (!filtroFornecedorAtual || solicitacaoTemFornecedor(s, filtroFornecedorAtual))
   );
   if (!filtrados.length){
     lista.innerHTML = '<p class="muted" style="text-align:center; margin-top:40px;">Nenhuma solicitação nesse grupo.</p>';
