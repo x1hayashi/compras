@@ -31,6 +31,7 @@
   }
   .card.card-verde{background:#f0fdf4; border-color:#bbf7d0; border-left:4px solid var(--lancada);}
   .card.card-amarelo{background:#fffbeb; border-color:#fde68a; border-left:4px solid var(--pendente);}
+  .card.card-vermelho{background:#fef2f2; border-color:#fecaca; border-left:4px solid var(--cancelada);}
   .subtabs{display:flex; gap:6px; margin-bottom:12px; flex-wrap:wrap;}
   .subtab{padding:7px 10px; border-radius:20px; background:var(--card); border:1px solid var(--border); cursor:pointer; font-weight:600; font-size:11px; color:var(--muted); white-space:nowrap;}
   .subtab.active{background:var(--text); color:#fff; border-color:var(--text);}
@@ -700,9 +701,9 @@ function linhaPedido(s){
   const fmtData = (d) => d ? new Date(d).toLocaleDateString('pt-BR') : '—';
   const pessoas = textoPessoas([{label:'Comprador', nome:s.compradorPedido}, {label:'Responsável', nome:s.responsavelPedido}]);
   let pagamentoTxt = '';
-  if (s.grupo === 'pedido_aguardando_pagamento' || s.grupo === 'pedido_aprovado_concluido'){
+  if (s.grupo === 'pedido_aguardando_pagamento' || s.grupo === 'pedido_aprovado_concluido' || (s.grupo === 'pedido_aprovado_aberto' && s.pagamentoPago)){
     if (s.pagamentoPago){
-      pagamentoTxt = ' · Pagamento: quitado';
+      pagamentoTxt = ' · Pagamento: quitado' + (s.grupo === 'pedido_aprovado_aberto' ? ' (adiantado, ainda não entregue)' : '');
     } else if (s.pagamentoValorAberto != null){
       pagamentoTxt = ' · Pagamento: ' + Number(s.pagamentoValorAberto).toLocaleString('pt-BR', { style:'currency', currency:'BRL' }) + ' em aberto';
     }
@@ -768,7 +769,7 @@ function renderHistorico(){
     return;
   }
   lista.innerHTML = filtrados.map(s=>{
-    const corClass = s.cor === 'verde' ? 'card-verde' : 'card-amarelo';
+    const corClass = s.cor === 'verde' ? 'card-verde' : (s.cor === 'vermelho' ? 'card-vermelho' : 'card-amarelo');
 
     const linhaSolic = linhaSolicitacao(s);
     const linhaCota = linhaCotacao(s);
