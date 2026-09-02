@@ -836,10 +836,10 @@ function renderMatrizCotacao(s){
   const headerFornecedores = fornecedores.map(f => {
     const obs = obsPorFornecedor[f];
     const icone = obs ? ` <span title="${obs.replace(/"/g,'&quot;')}" style="cursor:help; color:var(--accent);">ⓘ</span>` : '';
-    return `<th colspan="2" style="padding:6px 4px; text-align:center; border-left:1px solid var(--border); white-space:nowrap;">${f}${icone}</th>`;
+    return `<th colspan="2" style="padding:6px 4px; text-align:center; border-left:1px solid var(--border); white-space:nowrap; height:32px; box-sizing:border-box; position:sticky; top:0; z-index:3; background:var(--card);">${f}${icone}</th>`;
   }).join('');
   const subHeader = fornecedores.map(() =>
-    `<th style="padding:4px; font-weight:500; text-align:center; border-left:1px solid var(--border);">Unit.</th><th style="padding:4px; font-weight:500; text-align:center;">Total</th>`
+    `<th style="padding:4px; font-weight:500; text-align:center; border-left:1px solid var(--border); position:sticky; top:32px; z-index:3; background:var(--card);">Unit.</th><th style="padding:4px; font-weight:500; text-align:center; position:sticky; top:32px; z-index:3; background:var(--card);">Total</th>`
   ).join('');
 
   function valorRepresentativo(it){
@@ -916,22 +916,45 @@ function renderMatrizCotacao(s){
     </tr>`;
   }).join('');
 
+  // linha de total por fornecedor (soma do valor total de cada item cotado)
+  const totaisPorFornecedor = fornecedores.map(f => {
+    let soma = 0;
+    s.itens.forEach(it => {
+      const p = (it.propostasCotacao || []).find(pp => pp.fornecedor === f);
+      if (p && p.valorTotal != null) soma += Number(p.valorTotal) || 0;
+    });
+    return soma;
+  });
+  const menorTotal = Math.min(...totaisPorFornecedor.filter(v => v > 0));
+  const celulasTotal = fornecedores.map((f, i) => {
+    const soma = totaisPorFornecedor[i];
+    const destacar = soma > 0 && soma === menorTotal;
+    const estilo = destacar ? 'color:var(--lancada);' : '';
+    return `<td colspan="2" style="padding:6px 4px; text-align:center; border-left:1px solid var(--border); font-weight:700; ${estilo}">${formatarMoeda(soma)}</td>`;
+  }).join('');
+  const linhaTotal = `
+    <tr style="border-top:2px solid var(--border); background:var(--bg);">
+      <td colspan="3" style="padding:6px 4px; font-weight:700;">Total</td>
+      ${celulasTotal}
+      ${estagioPedido ? '<td style="border-left:1px solid var(--border);"></td>' : ''}
+    </tr>`;
+
   container.innerHTML = `
     <div style="overflow-x:auto;">
       <table style="border-collapse:collapse; font-size:13px; min-width:100%;">
         <thead>
           <tr style="text-align:left; color:var(--muted); font-size:12px;">
-            <th style="padding:6px 4px;" rowspan="2">Qtd.</th>
-            <th style="padding:6px 4px;" rowspan="2">Unid.</th>
-            <th style="padding:6px 4px;" rowspan="2">Produto</th>
+            <th style="padding:6px 4px; position:sticky; top:0; z-index:3; background:var(--card);" rowspan="2">Qtd.</th>
+            <th style="padding:6px 4px; position:sticky; top:0; z-index:3; background:var(--card);" rowspan="2">Unid.</th>
+            <th style="padding:6px 4px; position:sticky; top:0; z-index:3; background:var(--card);" rowspan="2">Produto</th>
             ${headerFornecedores}
-            ${estagioPedido ? `<th style="padding:6px 4px; border-left:1px solid var(--border);" rowspan="2">Entregue</th>` : ''}
+            ${estagioPedido ? `<th style="padding:6px 4px; border-left:1px solid var(--border); position:sticky; top:0; z-index:3; background:var(--card);" rowspan="2">Entregue</th>` : ''}
           </tr>
           <tr style="color:var(--muted); font-size:11px;">
             ${subHeader}
           </tr>
         </thead>
-        <tbody>${linhas}</tbody>
+        <tbody>${linhas}${linhaTotal}</tbody>
       </table>
     </div>
     <p class="muted" style="font-size:12px; margin-top:8px;">Preço em <strong style="color:var(--lancada);">verde</strong> é ${cotacaoDecidida ? 'o fornecedor aprovado para o item' : 'o menor cotado para o item'}.</p>`;
