@@ -281,8 +281,13 @@
           <div class="step-label">Aguardando entrega</div>
         </div>
         <div class="step-line"></div>
+        <div class="step step-amarelo" data-grupo="pedido_aguardando_pagamento" onclick="setGrupoHistorico('pedido_aguardando_pagamento')">
+          <div class="step-circle-wrap"><div class="step-circle">7</div><span class="step-badge zero" id="stepBadge-pedido_aguardando_pagamento">0</span></div>
+          <div class="step-label">Aguardando pagamento</div>
+        </div>
+        <div class="step-line"></div>
         <div class="step step-verde" data-grupo="pedido_aprovado_concluido" onclick="setGrupoHistorico('pedido_aprovado_concluido')">
-          <div class="step-circle-wrap"><div class="step-circle">7</div><span class="step-badge zero" id="stepBadge-pedido_aprovado_concluido">0</span></div>
+          <div class="step-circle-wrap"><div class="step-circle">8</div><span class="step-badge zero" id="stepBadge-pedido_aprovado_concluido">0</span></div>
           <div class="step-label">Concluído</div>
         </div>
       </div>
@@ -694,7 +699,15 @@ function linhaPedido(s){
   if (!s.numeroPedido) return null;
   const fmtData = (d) => d ? new Date(d).toLocaleDateString('pt-BR') : '—';
   const pessoas = textoPessoas([{label:'Comprador', nome:s.compradorPedido}, {label:'Responsável', nome:s.responsavelPedido}]);
-  return `Nº Pedido ${s.numeroPedido} · ${fmtData(s.dataPedido)} · ${pessoas}${s.fornecedorPedido ? ' · Fornecedor: ' + s.fornecedorPedido : ''}`;
+  let pagamentoTxt = '';
+  if (s.grupo === 'pedido_aguardando_pagamento' || s.grupo === 'pedido_aprovado_concluido'){
+    if (s.pagamentoPago){
+      pagamentoTxt = ' · Pagamento: quitado';
+    } else if (s.pagamentoValorAberto != null){
+      pagamentoTxt = ' · Pagamento: ' + Number(s.pagamentoValorAberto).toLocaleString('pt-BR', { style:'currency', currency:'BRL' }) + ' em aberto';
+    }
+  }
+  return `Nº Pedido ${s.numeroPedido} · ${fmtData(s.dataPedido)} · ${pessoas}${s.fornecedorPedido ? ' · Fornecedor: ' + s.fornecedorPedido : ''}${pagamentoTxt}`;
 }
 function percentualEntrega(s){
   let pedida = 0, entregue = 0;
@@ -718,7 +731,7 @@ function tituloPorGrupo(s){
   return `Pedido nº ${s.numeroPedido || '—'}`;
 }
 
-const GRUPOS_HISTORICO = ['aberto','aprovada_sem_cotacao','em_cotacao','cotacao_aprovada','pedido_aberto','pedido_aprovado_aberto','pedido_aprovado_concluido'];
+const GRUPOS_HISTORICO = ['aberto','aprovada_sem_cotacao','em_cotacao','cotacao_aprovada','pedido_aberto','pedido_aprovado_aberto','pedido_aguardando_pagamento','pedido_aprovado_concluido'];
 
 function atualizarContadoresStepper(){
   const contagens = {};
@@ -794,7 +807,7 @@ function renderHistorico(){
 
 function renderMatrizCotacao(s){
   const cotacaoDecidida = s.grupo !== 'em_cotacao';
-  const estagioPedido = ['pedido_aberto','pedido_aprovado_aberto','pedido_aprovado_concluido'].includes(s.grupo);
+  const estagioPedido = ['pedido_aberto','pedido_aprovado_aberto','pedido_aguardando_pagamento','pedido_aprovado_concluido'].includes(s.grupo);
   const emEspera = s.grupo === 'pedido_aprovado_aberto';
   function formatarMoeda(v){
     return v == null ? '—' : Number(v).toLocaleString('pt-BR', { style:'currency', currency:'BRL' });
@@ -934,7 +947,7 @@ function abrirDetalheHistorico(id){
   document.getElementById('histDetalheSub').innerHTML = [linhaSolic, linhaCota, linhaPed].filter(Boolean)
     .map(l => `<div>${l}</div>`).join('');
 
-  const estagiosPedido = ['pedido_aberto','pedido_aprovado_aberto','pedido_aprovado_concluido'];
+  const estagiosPedido = ['pedido_aberto','pedido_aprovado_aberto','pedido_aguardando_pagamento','pedido_aprovado_concluido'];
   const temCotacaoAssociada = s.itens.some(it => (it.propostasCotacao || []).length > 0);
   if (s.grupo === 'em_cotacao' || s.grupo === 'cotacao_aprovada' || (estagiosPedido.includes(s.grupo) && temCotacaoAssociada)){
     renderMatrizCotacao(s);
