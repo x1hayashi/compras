@@ -901,7 +901,8 @@ function renderMatrizCotacao(s){
     const qtdUm = Number(it.quantidade) === 1;
     const celulas = fornecedores.map(f => {
       const p = porFornecedor[f];
-      if (!p || p.valorUnitario == null){
+      const semPreco = !p || p.valorUnitario == null || Number(p.valorUnitario) <= 0;
+      if (semPreco){
         return qtdUm
           ? `<td colspan="2" style="padding:4px; text-align:center; border-left:1px solid var(--border); color:var(--muted);">—</td>`
           : `<td style="padding:4px; text-align:center; border-left:1px solid var(--border); color:var(--muted);">—</td><td style="padding:4px; text-align:center; color:var(--muted);">—</td>`;
@@ -954,7 +955,10 @@ function renderMatrizCotacao(s){
   const menorTotal = Math.min(...totaisPorFornecedor.filter(v => v > 0));
   const celulasTotal = fornecedores.map((f, i) => {
     const soma = totaisPorFornecedor[i];
-    const destacar = soma > 0 && soma === menorTotal;
+    if (soma <= 0){
+      return `<td colspan="2" style="padding:6px 4px; text-align:center; border-left:1px solid var(--border); color:var(--muted); font-weight:700;">—</td>`;
+    }
+    const destacar = soma === menorTotal;
     const estilo = destacar ? 'color:var(--lancada);' : '';
     return `<td colspan="2" style="padding:6px 4px; text-align:center; border-left:1px solid var(--border); font-weight:700; ${estilo}">${formatarMoeda(soma)}</td>`;
   }).join('');
@@ -966,7 +970,7 @@ function renderMatrizCotacao(s){
     </tr>`;
 
   container.innerHTML = `
-    <div style="overflow-x:auto;">
+    <div style="overflow:auto; max-height:60vh;">
       <table style="border-collapse:separate; border-spacing:0; font-size:13px; min-width:100%;">
         <thead>
           <tr style="text-align:left; color:var(--muted); font-size:12px;">
