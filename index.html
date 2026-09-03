@@ -247,6 +247,11 @@
         <input id="filtroFornecedor" placeholder="Digite parte do nome..." oninput="onFiltroFornecedorChange()" style="padding-right:32px;">
         <button id="btnLimparFornecedor" onclick="limparFiltroFornecedor()" class="hidden" title="Limpar" style="position:absolute; right:6px; top:29px; background:none; border:none; color:var(--muted); font-size:16px; cursor:pointer; padding:4px 6px; line-height:1;">✕</button>
       </div>
+      <div style="flex:1; min-width:160px; position:relative;">
+        <label style="margin:0 0 4px;">Nº Solic./Cotação/Pedido</label>
+        <input id="filtroNumero" placeholder="Digite o número..." inputmode="numeric" oninput="onFiltroNumeroChange()" style="padding-right:32px;">
+        <button id="btnLimparNumero" onclick="limparFiltroNumero()" class="hidden" title="Limpar" style="position:absolute; right:6px; top:29px; background:none; border:none; color:var(--muted); font-size:16px; cursor:pointer; padding:4px 6px; line-height:1;">✕</button>
+      </div>
     </div>
     <div class="tabs" id="tabsMain">
       <div class="tab active" data-tab="pendente" onclick="setTab('pendente')">Pendentes</div>
@@ -552,6 +557,7 @@ async function onFilialChange(){
 let filtroFuncionarioAtual = '';
 let filtroProdutoAtual = '';
 let filtroFornecedorAtual = '';
+let filtroNumeroAtual = '';
 
 function onFiltroFuncionarioChange(){
   filtroFuncionarioAtual = document.getElementById('filtroFuncionario').value;
@@ -587,6 +593,24 @@ function solicitacaoTemFornecedor(s, termo){
   if ((s.fornecedorCotacao || '').toLowerCase().includes(termo)) return true;
   if ((s.fornecedorPedido || '').toLowerCase().includes(termo)) return true;
   return s.itens.some(it => (it.propostasCotacao || []).some(p => (p.fornecedor || '').toLowerCase().includes(termo)));
+}
+
+function onFiltroNumeroChange(){
+  const input = document.getElementById('filtroNumero');
+  const soDigitos = input.value.replace(/\D/g, '');
+  if (input.value !== soDigitos) input.value = soDigitos;
+  filtroNumeroAtual = soDigitos;
+  document.getElementById('btnLimparNumero').classList.toggle('hidden', !filtroNumeroAtual);
+  if (currentTab === 'historico') renderHistorico();
+}
+
+function limparFiltroNumero(){
+  document.getElementById('filtroNumero').value = '';
+  onFiltroNumeroChange();
+}
+
+function solicitacaoTemNumero(s, termo){
+  return [s.numeroSolicitacao, s.numeroCotacao, s.numeroPedido].some(n => n != null && String(n).includes(termo));
 }
 
 function normalizarNome(n){
@@ -766,6 +790,7 @@ function atualizarContadoresStepper(){
     if (filtroFuncionarioAtual && ![s.solicitante, s.cotador, s.responsavelCotacao, s.compradorPedido, s.responsavelPedido].some(n => mesmaPessoa(n, filtroFuncionarioAtual))) return;
     if (filtroProdutoAtual && !s.itens.some(it => (it.produto || '').toLowerCase().includes(filtroProdutoAtual))) return;
     if (filtroFornecedorAtual && !solicitacaoTemFornecedor(s, filtroFornecedorAtual)) return;
+    if (filtroNumeroAtual && !solicitacaoTemNumero(s, filtroNumeroAtual)) return;
     if (contagens[s.grupo] != null) contagens[s.grupo]++;
   });
   GRUPOS_HISTORICO.forEach(g => {
@@ -788,7 +813,8 @@ function renderHistorico(){
     s.grupo === currentGrupoHistorico &&
     (!filtroFuncionarioAtual || [s.solicitante, s.cotador, s.responsavelCotacao, s.compradorPedido, s.responsavelPedido].some(n => mesmaPessoa(n, filtroFuncionarioAtual))) &&
     (!filtroProdutoAtual || s.itens.some(it => (it.produto || '').toLowerCase().includes(filtroProdutoAtual))) &&
-    (!filtroFornecedorAtual || solicitacaoTemFornecedor(s, filtroFornecedorAtual))
+    (!filtroFornecedorAtual || solicitacaoTemFornecedor(s, filtroFornecedorAtual)) &&
+    (!filtroNumeroAtual || solicitacaoTemNumero(s, filtroNumeroAtual))
   );
   if (!filtrados.length){
     lista.innerHTML = '<p class="muted" style="text-align:center; margin-top:40px;">Nenhuma solicitação nesse grupo.</p>';
