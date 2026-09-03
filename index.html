@@ -1290,6 +1290,34 @@ async function enviarWhatsappResponsavel({ filialNome, filialSigla, setorNome, o
 }
 
 // ── ADMIN ─────────────────────────────────────────────────
+async function investigarPedido(){
+  const numero = document.getElementById('debugNumeroPedido').value.trim();
+  const resultado = document.getElementById('debugResultado');
+  if (!numero){ showToast('Digite o número do pedido', true); return; }
+  resultado.innerHTML = '<p class="muted">Buscando (pode demorar alguns segundos)...</p>';
+  try{
+    const data = await api('/admin/debug-pedido?numero=' + encodeURIComponent(numero));
+    if (!data.encontrados){
+      resultado.innerHTML = `<p class="muted">Nenhum pedido com número <strong>${numero}</strong> encontrado no GSB na janela ${data.janelaBuscada}. Ou o número está errado, ou o pedido é mais antigo que 2 anos.</p>`;
+      return;
+    }
+    resultado.innerHTML = data.pedidos.map(p => {
+      const itensHtml = p.itens.map(it => `
+        <div class="item-row" style="flex-direction:column; align-items:flex-start;">
+          <div><strong>Produto ${it.idProduto}</strong> · Qtd ${it.quantidade} · Entregue ${it.quantidadeEntregue ?? '—'}</div>
+          <div class="muted" style="font-size:12px;">Status na solicitação: ${it.statusDoItemNaSolicitacao}</div>
+          ${it.solicitacao ? `<div class="muted" style="font-size:12px;">Solicitação nº ${it.solicitacao.numero} · ${it.solicitacao.data} · filial ${it.solicitacao.idFilial}</div>` : ''}
+        </div>`).join('');
+      return `
+        <div class="card" style="margin-top:10px;">
+          <div><strong>Pedido nº ${p.numeroPedido}</strong> · status: ${p.statusPedido}</div>
+          <div class="muted">Data: ${p.dataPedido} · Filial: ${p.siglaFilial} (idFilial ${p.idFilial})</div>
+          <div style="margin-top:8px;">${itensHtml}</div>
+        </div>`;
+    }).join('');
+  }catch(e){ resultado.innerHTML = `<p class="muted">Erro: ${e.message}</p>`; }
+}
+
 async function carregarAdmin(){
   const container = document.getElementById('adminView');
   container.innerHTML = '<p class="muted">Carregando...</p>';
@@ -1331,7 +1359,18 @@ async function carregarAdmin(){
         </div>
       </div>`).join('');
 
-    container.innerHTML = respHtml + `<div class="card">${usuariosHtml}</div>`;
+    const debugHtml = `
+      <div class="card">
+        <strong>Diagnóstico de pedido</strong>
+        <p class="muted" style="margin:4px 0 10px;">Digite o número do pedido pra ver exatamente o que o GSB retorna e por que ele aparece ou não no app.</p>
+        <div style="display:flex; gap:8px;">
+          <input id="debugNumeroPedido" placeholder="Número do pedido" inputmode="numeric" style="flex:1;">
+          <button class="btn-ghost btn-sm" onclick="investigarPedido()">Investigar</button>
+        </div>
+        <div id="debugResultado" style="margin-top:12px;"></div>
+      </div>`;
+
+    container.innerHTML = respHtml + debugHtml + `<div class="card">${usuariosHtml}</div>`;
   }catch(e){ container.innerHTML = `<p class="muted">Erro ao carregar: ${e.message}</p>`; }
 }
 
