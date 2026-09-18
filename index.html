@@ -1214,7 +1214,6 @@ function gerarPdfSolicitacao(id){
       <td>${it.descricao_produto}</td>
       <td style="text-align:center;">${it.quantidade}</td>
       <td style="text-align:center;">${it.unidade || '—'}</td>
-      <td>${it.link_produto ? `<a href="${it.link_produto}">${it.link_produto}</a>` : '—'}</td>
     </tr>`).join('');
 
   const html = `<!DOCTYPE html>
@@ -1249,7 +1248,7 @@ function gerarPdfSolicitacao(id){
   </div>
   <table>
     <thead>
-      <tr><th style="width:40px;">Item</th><th>Produto</th><th style="width:70px;">Qtd.</th><th style="width:70px;">Unid.</th><th>Link</th></tr>
+      <tr><th style="width:40px;">Item</th><th>Produto</th><th style="width:70px;">Qtd.</th><th style="width:70px;">Unid.</th></tr>
     </thead>
     <tbody>${linhasProdutos}</tbody>
   </table>
