@@ -1348,12 +1348,13 @@ async function carregarAdmin(){
     const usuariosHtml = usuarios.map(u => `
       <div class="admin-user">
         <div style="flex:1;">
-          <div><strong>${u.nome}</strong> ${u.admin ? '👑' : ''}</div>
+          <div><strong>${u.nome}</strong> ${u.admin ? '👑' : ''} ${u.acesso_financeiro ? '💰' : ''}</div>
           <div class="muted">${u.whatsapp} · ${u.filial || 'Sem filial'} · <span class="badge ${u.status==='aprovado'?'aprovado':u.status==='bloqueado'?'bloqueado':'pendente'}">${u.status}</span></div>
           <div class="admin-user-actions">
             ${u.status!=='aprovado' ? `<button class="btn-ghost btn-sm" onclick="adminAcao(${u.id},{status:'aprovado'})">✓ Aprovar</button>` : ''}
             ${u.status!=='bloqueado' ? `<button class="btn-danger btn-sm" onclick="adminAcao(${u.id},{status:'bloqueado'})">Bloquear</button>` : ''}
             ${!u.admin ? `<button class="btn-ghost btn-sm" onclick="adminAcao(${u.id},{admin:true})">👑 Tornar admin</button>` : ''}
+            <button class="btn-ghost btn-sm" onclick="adminAcao(${u.id},{acesso_financeiro:${!u.acesso_financeiro}})">${u.acesso_financeiro ? '🚫 Remover acesso financeiro' : '💰 Liberar acesso financeiro'}</button>
             ${!u.admin ? `<button class="btn-danger btn-sm" onclick="adminExcluir(${u.id},'${u.nome.replace(/'/g,"\\'")}')">🗑 Excluir</button>` : ''}
           </div>
         </div>
