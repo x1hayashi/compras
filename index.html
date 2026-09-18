@@ -1197,9 +1197,72 @@ function render(){
         <div class="muted">Solicitante: ${s.solicitante_nome}${s.data_necessidade ? ' · Necessário até ' + new Date(s.data_necessidade+'T00:00:00').toLocaleDateString('pt-BR') : ''}</div>
         ${s.obs ? `<div style="margin-top:6px; font-size:14px;">${s.obs}</div>` : ''}
         <div style="margin-top:10px;">${itensHtml}</div>
+        <div style="margin-top:10px;"><button class="btn-ghost btn-sm" onclick="gerarPdfSolicitacao(${s.id})">📄 Gerar PDF</button></div>
         ${acoes}
       </div>`;
   }).join('');
+}
+
+function gerarPdfSolicitacao(id){
+  const s = solicitacoes.find(x => String(x.id) === String(id));
+  if (!s) return;
+  const dt = new Date(s.data_solicitacao).toLocaleDateString('pt-BR');
+  const dataNecessidade = s.data_necessidade ? new Date(s.data_necessidade+'T00:00:00').toLocaleDateString('pt-BR') : '—';
+  const linhasProdutos = (s.itens||[]).map((it,i) => `
+    <tr>
+      <td style="text-align:center;">${i+1}</td>
+      <td>${it.descricao_produto}</td>
+      <td style="text-align:center;">${it.quantidade}</td>
+      <td style="text-align:center;">${it.unidade || '—'}</td>
+      <td>${it.link_produto ? `<a href="${it.link_produto}">${it.link_produto}</a>` : '—'}</td>
+    </tr>`).join('');
+
+  const html = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Solicitação de Compra Nº ${s.id}</title>
+<style>
+  body{ font-family: Arial, Helvetica, sans-serif; padding:36px; color:#1a1d23; }
+  h1{ font-size:20px; margin:0 0 4px; }
+  .sub{ color:#6b7280; font-size:13px; margin-bottom:20px; }
+  .info{ margin-bottom:20px; font-size:14px; line-height:1.9; border:1px solid #ccc; border-radius:8px; padding:12px 16px; }
+  .info strong{ display:inline-block; min-width:150px; }
+  table{ width:100%; border-collapse:collapse; margin-top:8px; }
+  th, td{ border:1px solid #333; padding:9px 10px; font-size:13px; text-align:left; }
+  th{ background:#f0f0f0; }
+  .obs{ margin-top:18px; font-size:13px; border:1px solid #ccc; border-radius:8px; padding:10px 14px; }
+  .rodape{ margin-top:32px; font-size:11px; color:#9ca3af; }
+  @media print{ .no-print{ display:none; } body{ padding:0; } }
+</style>
+</head>
+<body>
+  <button class="no-print" onclick="window.print()" style="float:right; padding:8px 16px; cursor:pointer;">Imprimir / Salvar PDF</button>
+  <h1>Solicitação de Compra</h1>
+  <div class="sub">Nº ${s.id}${s.numero_solicitacao_gsb ? ' · GSB nº ' + s.numero_solicitacao_gsb : ''}</div>
+  <div class="info">
+    <div><strong>Filial:</strong> ${s.filial_nome || '—'}</div>
+    <div><strong>Setor:</strong> ${s.setor_nome || '—'}</div>
+    <div><strong>Solicitante:</strong> ${s.solicitante_nome || '—'}</div>
+    <div><strong>Data da solicitação:</strong> ${dt}</div>
+    <div><strong>Necessário até:</strong> ${dataNecessidade}</div>
+  </div>
+  <table>
+    <thead>
+      <tr><th style="width:40px;">Item</th><th>Produto</th><th style="width:70px;">Qtd.</th><th style="width:70px;">Unid.</th><th>Link</th></tr>
+    </thead>
+    <tbody>${linhasProdutos}</tbody>
+  </table>
+  ${s.obs ? `<div class="obs"><strong>Observação:</strong> ${s.obs}</div>` : ''}
+  <div class="rodape">Gerado em ${new Date().toLocaleString('pt-BR')} pelo app de Compras — Hayashi</div>
+  <script>window.onload = function(){ window.print(); };</script>
+</body>
+</html>`;
+
+  const janela = window.open('', '_blank');
+  if (!janela){ showToast('Permita pop-ups para gerar o PDF', true); return; }
+  janela.document.write(html);
+  janela.document.close();
 }
 
 async function marcarLancada(id){
