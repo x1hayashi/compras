@@ -422,6 +422,25 @@ function showToast(msg, isError=false){
   setTimeout(()=>t.classList.remove('show'), 2500);
 }
 
+function copiarLink(btn){
+  const link = btn.dataset.link;
+  if (navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(link).then(
+      () => showToast('Link copiado!'),
+      () => showToast('Não foi possível copiar', true)
+    );
+  } else {
+    // fallback pra navegadores/contextos sem Clipboard API
+    const temp = document.createElement('textarea');
+    temp.value = link;
+    document.body.appendChild(temp);
+    temp.select();
+    try { document.execCommand('copy'); showToast('Link copiado!'); }
+    catch(e){ showToast('Não foi possível copiar', true); }
+    document.body.removeChild(temp);
+  }
+}
+
 async function api(path, opts={}){
   opts.headers = Object.assign({ "Content-Type":"application/json" }, opts.headers || {});
   if (token) opts.headers["Authorization"] = "Bearer " + token;
@@ -1155,7 +1174,10 @@ function render(){
           <span>${it.descricao_produto} ${it.unidade?('('+it.unidade+')'):''}</span>
           <span>${it.quantidade}</span>
         </div>
-        ${it.link_produto ? `<a href="${it.link_produto}" target="_blank" rel="noopener" style="font-size:12px; color:var(--accent); text-decoration:none; margin-top:2px;">🔗 Ver produto no site</a>` : ''}
+        ${it.link_produto ? `<div style="display:flex; align-items:center; gap:10px; margin-top:2px;">
+          <a href="${it.link_produto}" target="_blank" rel="noopener" style="font-size:12px; color:var(--accent); text-decoration:none;">🔗 Ver produto no site</a>
+          <button onclick="copiarLink(this)" data-link="${it.link_produto.replace(/"/g,'&quot;')}" title="Copiar link" style="background:none; border:none; color:var(--muted); cursor:pointer; font-size:13px; padding:0;">📋 Copiar</button>
+        </div>` : ''}
       </div>`).join('');
     const acoes = currentUser.admin && s.status === 'pendente'
       ? `<div style="display:flex; gap:8px; margin-top:10px;">
