@@ -645,11 +645,10 @@ function renderPagamentos(){
       </table>
     </div>`;
 
-  // congela o cabeçalho da tabela logo abaixo do bloco de topo (busca + soma), que já é sticky
-  const alturaTopo = document.getElementById('pagamentosTopo').offsetHeight;
+  // congela o cabeçalho no topo do próprio contêiner de rolagem da tabela
   lista.querySelectorAll('thead th').forEach(th => {
     th.style.position = 'sticky';
-    th.style.top = alturaTopo + 'px';
+    th.style.top = '0';
     th.style.background = 'var(--card)';
     th.style.zIndex = '5';
   });
