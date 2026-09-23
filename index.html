@@ -56,6 +56,7 @@
     display:flex; align-items:center; justify-content:center; padding:0 3px; line-height:1;
   }
   .step-badge.zero{display:none;}
+  .valor-selecionado{background:#dbeafe !important; outline:2px solid var(--accent); outline-offset:-2px; border-radius:4px;}
   .filial-screen{display:flex; align-items:center; justify-content:center; min-height:80vh; padding:20px;}
   .filial-box{max-width:420px; width:100%; text-align:center;}
   .filial-icon{font-size:48px; margin-bottom:12px;}
@@ -229,9 +230,21 @@
 
   <!-- PAGAMENTOS -->
   <div id="pagamentosView" class="hidden">
-    <button class="filial-badge" onclick="fecharPagamentos()">← Voltar</button>
-    <h2 style="margin:16px 0 4px;">💳 Pagamentos em aberto</h2>
-    <p class="muted" id="pagamentosSemanaLabel" style="margin:0 0 16px;"></p>
+    <div id="pagamentosTopo" style="position:sticky; top:0; background:var(--bg); z-index:6; padding-bottom:10px;">
+      <button class="filial-badge" onclick="fecharPagamentos()">← Voltar</button>
+      <h2 style="margin:16px 0 4px;">💳 Pagamentos em aberto</h2>
+      <p class="muted" id="pagamentosSemanaLabel" style="margin:0 0 12px;"></p>
+      <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:flex-end;">
+        <div style="flex:1; min-width:200px; position:relative;">
+          <label style="margin:0 0 4px;">Buscar (fornecedor, sacado, filial ou observação)</label>
+          <input id="filtroPagamentos" placeholder="Digite para filtrar..." oninput="renderPagamentos()" style="padding-right:32px;">
+        </div>
+        <div class="card" style="padding:10px 16px; margin:0; min-width:200px;">
+          <div class="muted" style="font-size:12px;">Selecionado (clique nos valores)</div>
+          <div id="somaSelecionados" style="font-size:18px; font-weight:700; color:var(--accent);">R$ 0,00</div>
+        </div>
+      </div>
+    </div>
     <div id="pagamentosLista"></div>
   </div>
 
@@ -513,44 +526,133 @@ async function abrirPagamentos(){
   const lista = document.getElementById('pagamentosLista');
   lista.innerHTML = '<p class="muted" style="text-align:center; margin-top:20px;">Carregando...</p>';
   try{
-    const dados = await api('/gsb/pagamentos-abertos');
-    if (!dados.length){
-      lista.innerHTML = '<p class="muted" style="text-align:center; margin-top:40px;">Nenhum pagamento em aberto vencendo essa semana.</p>';
-      return;
-    }
-    lista.innerHTML = `
-      <div style="overflow-x:auto;">
-        <table style="border-collapse:collapse; font-size:13px; min-width:100%;">
-          <thead>
-            <tr style="text-align:left; color:var(--muted); font-size:12px; border-bottom:2px solid var(--border);">
-              <th style="padding:6px 8px;">Vencimento</th>
-              <th style="padding:6px 8px;">ID Pag.</th>
-              <th style="padding:6px 8px;">Filial</th>
-              <th style="padding:6px 8px;">Fornecedor</th>
-              <th style="padding:6px 8px;">Sacado</th>
-              <th style="padding:6px 8px;">Valor Aberto</th>
-              <th style="padding:6px 8px;">Tipo Mov.</th>
-              <th style="padding:6px 8px;">Observação</th>
-              <th style="padding:6px 8px;"></th>
-            </tr>
-          </thead>
-          <tbody>
-            ${dados.map(pg => `
+    pagamentosDados = await api('/gsb/pagamentos-abertos');
+    pagamentosSelecionados.clear();
+    document.getElementById('filtroPagamentos').value = '';
+    renderPagamentos();
+  }catch(e){ lista.innerHTML = `<p class="muted">Erro ao carregar: ${e.message}</p>`; }
+}
+
+const COLUNAS_PAGAMENTOS = {
+  novoVencimento: v => parseDataBRparaOrdenar(v.novoVencimento),
+  idPagamento: v => Number(v.idPagamento) || 0,
+  siglaFilial: v => (v.siglaFilial || ''),
+  fornecedor: v => (v.fornecedor || ''),
+  sacado: v => (v.sacado || ''),
+  valorAberto: v => Number(v.valorAberto) || 0,
+  tipoMovimento: v => (v.tipoMovimento || ''),
+  observacao: v => (v.observacao || ''),
+};
+function parseDataBRparaOrdenar(s){
+  if (!s) return 0;
+  const [dd,mm,yyyy] = s.split(' ')[0].split('/').map(Number);
+  if (!dd||!mm||!yyyy) return 0;
+  return new Date(yyyy, mm-1, dd).getTime();
+}
+
+function ordenarPagamentos(coluna){
+  if (pagamentosOrdenacao.coluna === coluna){
+    pagamentosOrdenacao.direcao = pagamentosOrdenacao.direcao === 'asc' ? 'desc' : 'asc';
+  } else {
+    pagamentosOrdenacao = { coluna, direcao: 'asc' };
+  }
+  renderPagamentos();
+}
+
+function toggleSelecaoPagamento(td, idPagamento, valor){
+  if (pagamentosSelecionados.has(idPagamento)){
+    pagamentosSelecionados.delete(idPagamento);
+    td.classList.remove('valor-selecionado');
+  } else {
+    pagamentosSelecionados.add(idPagamento);
+    td.classList.add('valor-selecionado');
+  }
+  const soma = pagamentosDados
+    .filter(pg => pagamentosSelecionados.has(String(pg.idPagamento)))
+    .reduce((acc, pg) => acc + Number(pg.valorAberto || 0), 0);
+  document.getElementById('somaSelecionados').textContent =
+    soma.toLocaleString('pt-BR', { style:'currency', currency:'BRL' }) + ` (${pagamentosSelecionados.size})`;
+}
+
+function renderPagamentos(){
+  const lista = document.getElementById('pagamentosLista');
+  if (!pagamentosDados.length){
+    lista.innerHTML = '<p class="muted" style="text-align:center; margin-top:40px;">Nenhum pagamento em aberto vencendo essa semana.</p>';
+    return;
+  }
+  const termo = document.getElementById('filtroPagamentos').value.trim().toLowerCase();
+  let linhasDados = pagamentosDados.filter(pg => !termo ||
+    (pg.fornecedor||'').toLowerCase().includes(termo) ||
+    (pg.sacado||'').toLowerCase().includes(termo) ||
+    (pg.siglaFilial||'').toLowerCase().includes(termo) ||
+    (pg.observacao||'').toLowerCase().includes(termo)
+  );
+  const extrator = COLUNAS_PAGAMENTOS[pagamentosOrdenacao.coluna];
+  linhasDados = [...linhasDados].sort((a,b) => {
+    const va = extrator(a), vb = extrator(b);
+    const cmp = typeof va === 'string' ? va.localeCompare(vb) : va - vb;
+    return pagamentosOrdenacao.direcao === 'asc' ? cmp : -cmp;
+  });
+  if (!linhasDados.length){
+    lista.innerHTML = '<p class="muted" style="text-align:center; margin-top:40px;">Nenhum resultado para esse filtro.</p>';
+    return;
+  }
+  function seta(col){
+    if (pagamentosOrdenacao.coluna !== col) return '';
+    return pagamentosOrdenacao.direcao === 'asc' ? ' ▲' : ' ▼';
+  }
+  function th(col, label){
+    return `<th onclick="ordenarPagamentos('${col}')" style="padding:6px 8px; cursor:pointer; user-select:none; white-space:nowrap;">${label}${seta(col)}</th>`;
+  }
+  lista.innerHTML = `
+    <div style="overflow:auto; max-height:70vh;">
+      <table style="border-collapse:separate; border-spacing:0; font-size:13px; min-width:100%;">
+        <thead>
+          <tr style="text-align:left; color:var(--muted); font-size:12px;">
+            ${th('novoVencimento','Vencimento')}
+            ${th('idPagamento','ID Pag.')}
+            ${th('siglaFilial','Filial')}
+            ${th('fornecedor','Fornecedor')}
+            ${th('sacado','Sacado')}
+            ${th('valorAberto','Valor Aberto')}
+            ${th('tipoMovimento','Tipo Mov.')}
+            ${th('observacao','Observação')}
+            <th style="padding:6px 8px;"></th>
+          </tr>
+        </thead>
+        <tbody>
+          ${linhasDados.map(pg => {
+            const mesmoNome = pg.fornecedor && pg.sacado && pg.fornecedor.trim().toLowerCase() === pg.sacado.trim().toLowerCase();
+            const idPag = String(pg.idPagamento);
+            const selecionado = pagamentosSelecionados.has(idPag);
+            return `
               <tr style="border-bottom:1px solid var(--border);">
                 <td style="padding:6px 8px; white-space:nowrap;">${pg.novoVencimento || '—'}</td>
                 <td style="padding:6px 8px;">${pg.idPagamento}</td>
                 <td style="padding:6px 8px;">${pg.siglaFilial || '—'}</td>
-                <td style="padding:6px 8px;">${pg.fornecedor || '—'}</td>
+                <td style="padding:6px 8px;">${mesmoNome ? '' : (pg.fornecedor || '—')}</td>
                 <td style="padding:6px 8px;">${pg.sacado || '—'}</td>
-                <td style="padding:6px 8px; white-space:nowrap; font-weight:600;">${Number(pg.valorAberto).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</td>
+                <td class="${selecionado?'valor-selecionado':''}" onclick="toggleSelecaoPagamento(this,'${idPag}')" style="padding:6px 8px; white-space:nowrap; font-weight:600; cursor:pointer;" title="Clique para somar">${Number(pg.valorAberto).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</td>
                 <td style="padding:6px 8px;">${pg.tipoMovimento || '—'}</td>
                 <td style="padding:6px 8px;">${pg.observacao || '—'}</td>
-                <td style="padding:6px 8px;">${pg.idPedidoCompra && pg.idCotacao ? `<button class="btn-ghost btn-sm" onclick="verDetalhePagamento('${pg.idPedidoCompra}')">Ver detalhes</button>` : ''}</td>
-              </tr>`).join('')}
-          </tbody>
-        </table>
-      </div>`;
-  }catch(e){ lista.innerHTML = `<p class="muted">Erro ao carregar: ${e.message}</p>`; }
+                <td style="padding:6px 8px; white-space:nowrap;">
+                  ${pg.idCotacao ? `<button class="btn-ghost btn-sm" onclick="verDetalhePagamento('${pg.idPedidoCompra}','${pg.dataPedido||''}','cotacao')">Ver cotação</button>` : ''}
+                  ${pg.idPedidoCompra ? `<button class="btn-ghost btn-sm" onclick="verDetalhePagamento('${pg.idPedidoCompra}','${pg.dataPedido||''}','pedido')">Ver pedido</button>` : ''}
+                </td>
+              </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>`;
+
+  // congela o cabeçalho da tabela logo abaixo do bloco de topo (busca + soma), que já é sticky
+  const alturaTopo = document.getElementById('pagamentosTopo').offsetHeight;
+  lista.querySelectorAll('thead th').forEach(th => {
+    th.style.position = 'sticky';
+    th.style.top = alturaTopo + 'px';
+    th.style.background = 'var(--card)';
+    th.style.zIndex = '5';
+  });
 }
 
 function fecharPagamentos(){
@@ -558,10 +660,11 @@ function fecharPagamentos(){
   document.getElementById('filialScreen').classList.remove('hidden');
 }
 
-async function verDetalhePagamento(idPedidoCompra){
+async function verDetalhePagamento(idPedidoCompra, dataPedido, modo){
   try{
-    const card = await api('/gsb/detalhe-pedido?id=' + encodeURIComponent(idPedidoCompra));
-    exibirDetalheCard(card);
+    const url = '/gsb/detalhe-pedido?id=' + encodeURIComponent(idPedidoCompra) + (dataPedido ? '&data=' + encodeURIComponent(dataPedido) : '');
+    const card = await api(url);
+    exibirDetalheCard(card, modo);
   }catch(e){ showToast(e.message, true); }
 }
 
@@ -654,6 +757,9 @@ async function onFilialChange(){
 let filtroFuncionarioAtual = '';
 let filtroProdutoAtual = '';
 let filtroFornecedorAtual = '';
+let pagamentosDados = [];
+let pagamentosOrdenacao = { coluna: 'novoVencimento', direcao: 'asc' };
+let pagamentosSelecionados = new Set();
 let filtroNumeroAtual = '';
 
 function onFiltroFuncionarioChange(){
@@ -1119,7 +1225,7 @@ function abrirDetalheHistorico(id){
   exibirDetalheCard(s);
 }
 
-function exibirDetalheCard(s){
+function exibirDetalheCard(s, modoForcado){
   const linhaSolic = linhaSolicitacao(s);
   const linhaCota = linhaCotacao(s);
   const linhaPed = linhaPedido(s);
@@ -1130,7 +1236,10 @@ function exibirDetalheCard(s){
 
   const estagiosPedido = ['pedido_aberto','pedido_aprovado_aberto','pedido_aguardando_pagamento','pedido_aprovado_concluido'];
   const temCotacaoAssociada = s.itens.some(it => (it.propostasCotacao || []).length > 0);
-  if (s.grupo === 'em_cotacao' || s.grupo === 'cotacao_aprovada' || (estagiosPedido.includes(s.grupo) && temCotacaoAssociada)){
+  const mostrarMatriz = modoForcado === 'cotacao' ? temCotacaoAssociada
+    : modoForcado === 'pedido' ? false
+    : (s.grupo === 'em_cotacao' || s.grupo === 'cotacao_aprovada' || (estagiosPedido.includes(s.grupo) && temCotacaoAssociada));
+  if (mostrarMatriz){
     renderMatrizCotacao(s);
     document.getElementById('overlayHistDetalhe').classList.add('open');
     return;
