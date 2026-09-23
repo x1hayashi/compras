@@ -223,7 +223,16 @@
           </div>
         </button>
       </div>
+      <button id="btnAbrirPagamentos" class="btn-ghost hidden" style="margin-top:20px; width:100%;" onclick="abrirPagamentos()">💳 Pagamentos em aberto (semana atual)</button>
     </div>
+  </div>
+
+  <!-- PAGAMENTOS -->
+  <div id="pagamentosView" class="hidden">
+    <button class="filial-badge" onclick="fecharPagamentos()">← Voltar</button>
+    <h2 style="margin:16px 0 4px;">💳 Pagamentos em aberto</h2>
+    <p class="muted" id="pagamentosSemanaLabel" style="margin:0 0 16px;"></p>
+    <div id="pagamentosLista"></div>
   </div>
 
   <!-- LISTA -->
@@ -466,6 +475,7 @@ async function init(){
     currentUser = await api('/me');
     document.getElementById('userLabel').innerHTML = currentUser.nome + ' <button onclick="logout()">Sair</button>';
     if (currentUser.admin) document.getElementById('btnAdminIcon').classList.remove('hidden');
+    if (currentUser.admin || currentUser.acesso_financeiro) document.getElementById('btnAbrirPagamentos').classList.remove('hidden');
     await carregarCadastros();
     document.getElementById('filialScreen').classList.remove('hidden');
   }catch(e){
@@ -488,6 +498,71 @@ async function selecionarFilial(sigla){
 function trocarFilial(){
   document.getElementById('listView').classList.add('hidden');
   document.getElementById('filialScreen').classList.remove('hidden');
+}
+
+async function abrirPagamentos(){
+  document.getElementById('filialScreen').classList.add('hidden');
+  document.getElementById('pagamentosView').classList.remove('hidden');
+  const hoje = new Date();
+  const diaSemana = hoje.getDay();
+  const diffSegunda = diaSemana === 0 ? -6 : 1 - diaSemana;
+  const segunda = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate() + diffSegunda);
+  const domingo = new Date(segunda.getFullYear(), segunda.getMonth(), segunda.getDate() + 6);
+  document.getElementById('pagamentosSemanaLabel').textContent =
+    `Semana de ${segunda.toLocaleDateString('pt-BR')} até ${domingo.toLocaleDateString('pt-BR')}`;
+  const lista = document.getElementById('pagamentosLista');
+  lista.innerHTML = '<p class="muted" style="text-align:center; margin-top:20px;">Carregando...</p>';
+  try{
+    const dados = await api('/gsb/pagamentos-abertos');
+    if (!dados.length){
+      lista.innerHTML = '<p class="muted" style="text-align:center; margin-top:40px;">Nenhum pagamento em aberto vencendo essa semana.</p>';
+      return;
+    }
+    lista.innerHTML = `
+      <div style="overflow-x:auto;">
+        <table style="border-collapse:collapse; font-size:13px; min-width:100%;">
+          <thead>
+            <tr style="text-align:left; color:var(--muted); font-size:12px; border-bottom:2px solid var(--border);">
+              <th style="padding:6px 8px;">Vencimento</th>
+              <th style="padding:6px 8px;">ID Pag.</th>
+              <th style="padding:6px 8px;">Filial</th>
+              <th style="padding:6px 8px;">Fornecedor</th>
+              <th style="padding:6px 8px;">Sacado</th>
+              <th style="padding:6px 8px;">Valor Aberto</th>
+              <th style="padding:6px 8px;">Tipo Mov.</th>
+              <th style="padding:6px 8px;">Observação</th>
+              <th style="padding:6px 8px;"></th>
+            </tr>
+          </thead>
+          <tbody>
+            ${dados.map(pg => `
+              <tr style="border-bottom:1px solid var(--border);">
+                <td style="padding:6px 8px; white-space:nowrap;">${pg.novoVencimento || '—'}</td>
+                <td style="padding:6px 8px;">${pg.idPagamento}</td>
+                <td style="padding:6px 8px;">${pg.siglaFilial || '—'}</td>
+                <td style="padding:6px 8px;">${pg.fornecedor || '—'}</td>
+                <td style="padding:6px 8px;">${pg.sacado || '—'}</td>
+                <td style="padding:6px 8px; white-space:nowrap; font-weight:600;">${Number(pg.valorAberto).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</td>
+                <td style="padding:6px 8px;">${pg.tipoMovimento || '—'}</td>
+                <td style="padding:6px 8px;">${pg.observacao || '—'}</td>
+                <td style="padding:6px 8px;">${pg.idPedidoCompra && pg.idCotacao ? `<button class="btn-ghost btn-sm" onclick="verDetalhePagamento('${pg.idPedidoCompra}')">Ver detalhes</button>` : ''}</td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>`;
+  }catch(e){ lista.innerHTML = `<p class="muted">Erro ao carregar: ${e.message}</p>`; }
+}
+
+function fecharPagamentos(){
+  document.getElementById('pagamentosView').classList.add('hidden');
+  document.getElementById('filialScreen').classList.remove('hidden');
+}
+
+async function verDetalhePagamento(idPedidoCompra){
+  try{
+    const card = await api('/gsb/detalhe-pedido?id=' + encodeURIComponent(idPedidoCompra));
+    exibirDetalheCard(card);
+  }catch(e){ showToast(e.message, true); }
 }
 
 function mascararWhats(el){
@@ -1041,6 +1116,10 @@ function renderMatrizCotacao(s){
 function abrirDetalheHistorico(id){
   const s = historicoDados.find(x => String(x.idSolicitacaoCompra) === String(id));
   if (!s) return;
+  exibirDetalheCard(s);
+}
+
+function exibirDetalheCard(s){
   const linhaSolic = linhaSolicitacao(s);
   const linhaCota = linhaCotacao(s);
   const linhaPed = linhaPedido(s);
