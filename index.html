@@ -636,8 +636,8 @@ function renderPagamentos(){
                 <td style="padding:6px 8px;">${pg.tipoMovimento || '—'}</td>
                 <td style="padding:6px 8px;">${pg.observacao || '—'}</td>
                 <td style="padding:6px 8px; white-space:nowrap;">
-                  ${pg.idCotacao ? `<button class="btn-ghost btn-sm" onclick="verDetalhePagamento('${pg.idPedidoCompra}','${pg.dataPedido||''}','cotacao')">Ver cotação</button>` : ''}
-                  ${pg.idPedidoCompra ? `<button class="btn-ghost btn-sm" onclick="verDetalhePagamento('${pg.idPedidoCompra}','${pg.dataPedido||''}','pedido')">Ver pedido</button>` : ''}
+                  ${pg.idCotacao ? `<button class="btn-ghost btn-sm" onclick="verDetalhePagamento(this,'${pg.idPedidoCompra}','${pg.dataPedido||''}','cotacao')">Ver cotação</button>` : ''}
+                  ${pg.idPedidoCompra ? `<button class="btn-ghost btn-sm" onclick="verDetalhePagamento(this,'${pg.idPedidoCompra}','${pg.dataPedido||''}','pedido')">Ver pedido</button>` : ''}
                 </td>
               </tr>`;
           }).join('')}
@@ -659,12 +659,19 @@ function fecharPagamentos(){
   document.getElementById('filialScreen').classList.remove('hidden');
 }
 
-async function verDetalhePagamento(idPedidoCompra, dataPedido, modo){
+async function verDetalhePagamento(btn, idPedidoCompra, dataPedido, modo){
+  const textoOriginal = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Carregando...';
   try{
     const url = '/gsb/detalhe-pedido?id=' + encodeURIComponent(idPedidoCompra) + (dataPedido ? '&data=' + encodeURIComponent(dataPedido) : '');
     const card = await api(url);
     exibirDetalheCard(card, modo);
   }catch(e){ showToast(e.message, true); }
+  finally{
+    btn.disabled = false;
+    btn.textContent = textoOriginal;
+  }
 }
 
 function mascararWhats(el){
