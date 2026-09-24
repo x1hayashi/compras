@@ -1592,8 +1592,8 @@ async function investigarPagamentos(){
         <div>→ com valor aberto > 0: ${data.funil.comValorAbertoMaiorQueZero}</div>
         <div>→ com vencimento nessa semana: ${data.funil.comVencimentoNaSemanaAtual}</div>
         <div>→ com filial HGO ou HBA: ${data.funil.comFilialHgoOuHba}</div>
-        <div style="margin-top:8px;"><strong>Amostra (3 primeiros, sem filtro nenhum):</strong></div>
-        ${data.amostraSemFiltro.map(a => `<div>ID ${a.idPagamento} · filial ${a.idFilial} · valorAberto "${a.valorAberto}" · novoVencimento "${a.novoVencimento}" · dataVencimento "${a.dataVencimento}"</div>`).join('')}
+        <div style="margin-top:12px;"><strong>Maiores valores da semana (bruto do GSB vs. interpretado):</strong></div>
+        ${data.maioresValoresDaSemana.map(a => `<div style="margin-top:4px;">ID ${a.idPagamento} · ${a.fornecedor || '—'}<br>valorAberto bruto: "${a.valorAbertoBruto}" → interpretado: ${Number(a.valorAbertoInterpretado).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}<br>valor bruto: "${a.valorBruto}" · novoValor bruto: "${a.novoValorBruto}"</div>`).join('')}
       </div>`;
   }catch(e){ resultado.innerHTML = `<p class="muted">Erro: ${e.message}</p>`; }
 }
