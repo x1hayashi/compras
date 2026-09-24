@@ -632,7 +632,7 @@ function renderPagamentos(){
                 <td style="padding:6px 8px;">${pg.siglaFilial || '—'}</td>
                 <td style="padding:6px 8px;">${mesmoNome ? '' : (pg.fornecedor || '—')}</td>
                 <td style="padding:6px 8px;">${pg.sacado || '—'}</td>
-                <td class="${selecionado?'valor-selecionado':''}" onclick="toggleSelecaoPagamento(this,'${idPag}')" style="padding:6px 8px; white-space:nowrap; font-weight:600; cursor:pointer;" title="Clique para somar">${Number(pg.valorAberto).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</td>
+                <td class="${selecionado?'valor-selecionado':''}" onclick="toggleSelecaoPagamento(this,'${idPag}')" style="padding:6px 8px; white-space:nowrap; font-weight:600; cursor:pointer;" title="Clique para somar · valor bruto do GSB: ${pg.valorAbertoBruto}">${Number(pg.valorAberto).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</td>
                 <td style="padding:6px 8px;">${pg.tipoMovimento || '—'}</td>
                 <td style="padding:6px 8px;">${pg.observacao || '—'}</td>
                 <td style="padding:6px 8px; white-space:nowrap;">
