@@ -1571,6 +1571,26 @@ async function enviarWhatsappResponsavel({ filialNome, filialSigla, setorNome, o
 }
 
 // ── ADMIN ─────────────────────────────────────────────────
+async function investigarPagamentos(){
+  const resultado = document.getElementById('debugResultadoPagamentos');
+  resultado.innerHTML = '<p class="muted">Buscando (pode demorar alguns segundos)...</p>';
+  try{
+    const data = await api('/admin/debug-pagamentos');
+    resultado.innerHTML = `
+      <div class="muted" style="font-size:13px; line-height:1.8;">
+        <div><strong>Cache atual:</strong> ${data.cacheAtual.quantidadeNoCache} pagamentos (atualizado em ${data.cacheAtual.atualizadoEm || 'nunca'})</div>
+        <div><strong>Semana considerada:</strong> ${data.semanaAtual}</div>
+        <div style="margin-top:8px;"><strong>Funil de filtros:</strong></div>
+        <div>Total retornado pelo GSB (3 anos): ${data.funil.totalPagamentosBrutos}</div>
+        <div>→ com valor aberto > 0: ${data.funil.comValorAbertoMaiorQueZero}</div>
+        <div>→ com vencimento nessa semana: ${data.funil.comVencimentoNaSemanaAtual}</div>
+        <div>→ com filial HGO ou HBA: ${data.funil.comFilialHgoOuHba}</div>
+        <div style="margin-top:8px;"><strong>Amostra (3 primeiros, sem filtro nenhum):</strong></div>
+        ${data.amostraSemFiltro.map(a => `<div>ID ${a.idPagamento} · filial ${a.idFilial} · valorAberto "${a.valorAberto}" · novoVencimento "${a.novoVencimento}" · dataVencimento "${a.dataVencimento}"</div>`).join('')}
+      </div>`;
+  }catch(e){ resultado.innerHTML = `<p class="muted">Erro: ${e.message}</p>`; }
+}
+
 async function investigarPedido(){
   const numero = document.getElementById('debugNumeroPedido').value.trim();
   const resultado = document.getElementById('debugResultado');
@@ -1650,6 +1670,12 @@ async function carregarAdmin(){
           <button class="btn-ghost btn-sm" onclick="investigarPedido()">Investigar</button>
         </div>
         <div id="debugResultado" style="margin-top:12px;"></div>
+      </div>
+      <div class="card">
+        <strong>Diagnóstico de Pagamentos em aberto</strong>
+        <p class="muted" style="margin:4px 0 10px;">Mostra quantos pagamentos o GSB retorna e onde o filtro está zerando a lista.</p>
+        <button class="btn-ghost btn-sm" onclick="investigarPagamentos()">Investigar</button>
+        <div id="debugResultadoPagamentos" style="margin-top:12px;"></div>
       </div>`;
 
     container.innerHTML = respHtml + debugHtml + `<div class="card">${usuariosHtml}</div>`;
