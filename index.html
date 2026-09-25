@@ -1144,10 +1144,13 @@ function renderMatrizCotacao(s){
       }
       const destacar = cotacaoDecidida ? p.aprovado : (Number(p.valorUnitario) > 0 && Number(p.valorUnitario) === menorPreco);
       const estilo = destacar ? 'font-weight:700; color:var(--lancada);' : '';
+      const marca = p.marcaObservacao
+        ? ` <span title="${String(p.marcaObservacao).replace(/"/g,'&quot;')}" style="cursor:help; font-size:11px;">🏷️</span>`
+        : '';
       if (qtdUm){
-        return `<td colspan="2" style="padding:4px; text-align:center; border-left:1px solid var(--border); ${estilo}">${formatarMoeda(p.valorTotal)}</td>`;
+        return `<td colspan="2" style="padding:4px; text-align:center; border-left:1px solid var(--border); ${estilo}">${formatarMoeda(p.valorTotal)}${marca}</td>`;
       }
-      return `<td style="padding:4px; text-align:center; border-left:1px solid var(--border); ${estilo}">${formatarMoeda(p.valorUnitario)}</td><td style="padding:4px; text-align:center; ${estilo}">${formatarMoeda(p.valorTotal)}</td>`;
+      return `<td style="padding:4px; text-align:center; border-left:1px solid var(--border); ${estilo}">${formatarMoeda(p.valorUnitario)}${marca}</td><td style="padding:4px; text-align:center; ${estilo}">${formatarMoeda(p.valorTotal)}${marca}</td>`;
     }).join('');
 
     let celulaEntrega = '';
@@ -1283,7 +1286,7 @@ function exibirDetalheCard(s, modoForcado){
     const outrasPropostas = propostas.filter(p => !p.aprovado);
     const listaPropostas = outrasPropostas.length
       ? `<div style="margin-top:4px;">` + outrasPropostas.map(p => `
-          <div class="muted" style="font-size:12px;">${p.fornecedor || 'Fornecedor'}: ${formatarMoeda(p.valorUnitario)} (unit.)${cotacaoDecidida ? ' — não venceu' : ''}</div>
+          <div class="muted" style="font-size:12px;">${p.fornecedor || 'Fornecedor'}: ${formatarMoeda(p.valorUnitario)} (unit.)${p.marcaObservacao ? ` <span title="${String(p.marcaObservacao).replace(/"/g,'&quot;')}" style="cursor:help;">🏷️</span>` : ''}${cotacaoDecidida ? ' — não venceu' : ''}</div>
         `).join('') + `</div>`
       : '';
     let celulaEntrega = '';
