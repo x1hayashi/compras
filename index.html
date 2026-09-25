@@ -1299,6 +1299,7 @@ function exibirDetalheCard(s, modoForcado){
   const temPrecoCotacao = s.itens.some(it => it.cotacaoValorUnitario != null);
   const temPrecoPedido = s.itens.some(it => it.valorUnitario != null);
   const temEntrega = s.itens.some(it => it.pedidoQuantidadeEntregue != null || it.quantidadeEntregue != null);
+  const temDestino = s.itens.some(it => it.destino);
   function formatarMoeda(v){
     return v == null ? '—' : Number(v).toLocaleString('pt-BR', { style:'currency', currency:'BRL' });
   }
@@ -1357,6 +1358,7 @@ function exibirDetalheCard(s, modoForcado){
       ${temPrecoCotacao ? `<td>${formatarMoeda(it.cotacaoValorUnitario)}</td><td>${formatarMoeda(it.cotacaoValorTotal)}</td>` : ''}
       ${temPrecoPedido ? `<td>${formatarMoeda(it.valorUnitario)}</td><td>${formatarMoeda(it.valorTotal)}</td>` : ''}
       ${celulaEntrega}
+      ${temDestino ? `<td>${it.destino || '—'}</td>` : ''}
     </tr>`;
   }).join('');
   document.getElementById('histDetalheTabela').innerHTML = `
@@ -1369,6 +1371,7 @@ function exibirDetalheCard(s, modoForcado){
           ${temPrecoCotacao ? `<th style="padding:6px 4px;">Preço Cotação</th><th style="padding:6px 4px;">Total Cotação</th>` : ''}
           ${temPrecoPedido ? `<th style="padding:6px 4px;">Preço Pedido</th><th style="padding:6px 4px;">Total Pedido</th>` : ''}
           ${temEntrega ? `<th style="padding:6px 4px;">Entregue</th>` : ''}
+          ${temDestino ? `<th style="padding:6px 4px;">Destino</th>` : ''}
         </tr>
       </thead>
       <tbody>${linhas}</tbody>
