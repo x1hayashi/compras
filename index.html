@@ -234,6 +234,18 @@
       <button class="filial-badge" onclick="fecharPagamentos()">← Voltar</button>
       <h2 style="margin:16px 0 4px;">💳 Pagamentos em aberto</h2>
       <p class="muted" id="pagamentosSemanaLabel" style="margin:0 0 12px;"></p>
+      <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:flex-end; margin-bottom:10px;">
+        <div style="min-width:140px;">
+          <label style="margin:0 0 4px;">De</label>
+          <input id="pagamentosDataInicio" type="date">
+        </div>
+        <div style="min-width:140px;">
+          <label style="margin:0 0 4px;">Até</label>
+          <input id="pagamentosDataFim" type="date">
+        </div>
+        <button class="btn-ghost btn-sm" onclick="carregarPagamentos()">Aplicar</button>
+        <button class="btn-ghost btn-sm" onclick="resetarPeriodoPagamentos()">Padrão (7 dias)</button>
+      </div>
       <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:flex-end;">
         <div style="flex:1; min-width:200px; position:relative;">
           <label style="margin:0 0 4px;">Buscar (fornecedor, sacado, filial ou observação)</label>
@@ -513,20 +525,50 @@ function trocarFilial(){
   document.getElementById('filialScreen').classList.remove('hidden');
 }
 
+function dataParaInput(d){
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth()+1).padStart(2,'0');
+  const dd = String(d.getDate()).padStart(2,'0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function resetarPeriodoPagamentos(){
+  const hoje = new Date();
+  const inicio = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate());
+  const fim = new Date(inicio.getFullYear(), inicio.getMonth(), inicio.getDate() + 6);
+  document.getElementById('pagamentosDataInicio').value = dataParaInput(inicio);
+  document.getElementById('pagamentosDataFim').value = dataParaInput(fim);
+  carregarPagamentos();
+}
+
 async function abrirPagamentos(){
   document.getElementById('filialScreen').classList.add('hidden');
   document.getElementById('pagamentosView').classList.remove('hidden');
   const hoje = new Date();
-  const diaSemana = hoje.getDay();
-  const diffSegunda = diaSemana === 0 ? -6 : 1 - diaSemana;
-  const segunda = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate() + diffSegunda);
-  const domingo = new Date(segunda.getFullYear(), segunda.getMonth(), segunda.getDate() + 6);
-  document.getElementById('pagamentosSemanaLabel').textContent =
-    `Semana de ${segunda.toLocaleDateString('pt-BR')} até ${domingo.toLocaleDateString('pt-BR')}`;
+  const inicio = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate());
+  const fim = new Date(inicio.getFullYear(), inicio.getMonth(), inicio.getDate() + 6);
+  document.getElementById('pagamentosDataInicio').value = dataParaInput(inicio);
+  document.getElementById('pagamentosDataFim').value = dataParaInput(fim);
+  await carregarPagamentos();
+}
+
+async function carregarPagamentos(){
+  const dataInicio = document.getElementById('pagamentosDataInicio').value;
+  const dataFim = document.getElementById('pagamentosDataFim').value;
+  if (dataInicio && dataFim && dataInicio > dataFim){
+    showToast('A data inicial não pode ser depois da data final', true);
+    return;
+  }
   const lista = document.getElementById('pagamentosLista');
   lista.innerHTML = '<p class="muted" style="text-align:center; margin-top:20px;">Carregando...</p>';
   try{
-    pagamentosDados = await api('/gsb/pagamentos-abertos');
+    const qs = (dataInicio && dataFim) ? `?inicio=${dataInicio}&fim=${dataFim}` : '';
+    const resp = await api('/gsb/pagamentos-abertos' + qs);
+    pagamentosDados = resp.dados || [];
+    const ini = resp.periodoInicio ? new Date(resp.periodoInicio + 'T00:00:00') : null;
+    const fim = resp.periodoFim ? new Date(resp.periodoFim + 'T00:00:00') : null;
+    document.getElementById('pagamentosSemanaLabel').textContent =
+      (ini && fim) ? `Período de ${ini.toLocaleDateString('pt-BR')} até ${fim.toLocaleDateString('pt-BR')}` : '';
     pagamentosSelecionados.clear();
     document.getElementById('filtroPagamentos').value = '';
     renderPagamentos();
