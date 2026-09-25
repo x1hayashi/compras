@@ -1636,6 +1636,40 @@ async function investigarPedido(){
   }catch(e){ resultado.innerHTML = `<p class="muted">Erro: ${e.message}</p>`; }
 }
 
+async function investigarCotacao(){
+  const numero = document.getElementById('debugNumeroCotacao').value.trim();
+  const resultado = document.getElementById('debugResultadoCotacao');
+  if (!numero){ showToast('Digite o número da cotação', true); return; }
+  resultado.innerHTML = '<p class="muted">Buscando (pode demorar alguns segundos)...</p>';
+  try{
+    const data = await api('/admin/debug-cotacao?numero=' + encodeURIComponent(numero));
+    if (!data.encontrados){
+      resultado.innerHTML = `<p class="muted">Nenhuma cotação com número <strong>${numero}</strong> encontrada no GSB na janela ${data.janelaBuscada}.</p>`;
+      return;
+    }
+    resultado.innerHTML = data.cotacoes.map(c => {
+      const fornecedoresHtml = c.fornecedores.map(f => `
+        <div style="margin-top:8px; padding:8px; border:1px solid #e5e5e5; border-radius:8px;">
+          <div><strong>${f.fornecedor || 'Fornecedor ' + f.idFicha}</strong> (idCotacaoFornecedor ${f.idCotacaoFornecedor})</div>
+          <div class="muted" style="font-size:12px;">Chaves cruas do item: ${f.chavesCrasDoItem.join(', ') || '— sem itens —'}</div>
+          ${f.itensRaw.map(it => `
+            <div class="muted" style="font-size:12px; margin-top:4px;">
+              Produto ${it.idProduto} (item ${it.numeroItem}) · valorUnitario: ${it.valorUnitario} · statusAprovado: ${it.statusAprovado}<br>
+              marcaObservacao: <strong>${JSON.stringify(it.marcaObservacao)}</strong>
+              ${it.MarcaObservacao !== undefined ? ` · MarcaObservacao: ${JSON.stringify(it.MarcaObservacao)}` : ''}
+              ${it.marca_observacao !== undefined ? ` · marca_observacao: ${JSON.stringify(it.marca_observacao)}` : ''}
+              ${it.marcaobservacao !== undefined ? ` · marcaobservacao: ${JSON.stringify(it.marcaobservacao)}` : ''}
+            </div>`).join('')}
+        </div>`).join('');
+      return `
+        <div class="card" style="margin-top:10px;">
+          <div><strong>Cotação nº ${c.numeroCotacao}</strong> · Data: ${c.dataCotacao}</div>
+          ${fornecedoresHtml}
+        </div>`;
+    }).join('');
+  }catch(e){ resultado.innerHTML = `<p class="muted">Erro: ${e.message}</p>`; }
+}
+
 async function carregarAdmin(){
   const container = document.getElementById('adminView');
   container.innerHTML = '<p class="muted">Carregando...</p>';
@@ -1693,6 +1727,15 @@ async function carregarAdmin(){
         <p class="muted" style="margin:4px 0 10px;">Mostra quantos pagamentos o GSB retorna e onde o filtro está zerando a lista.</p>
         <button class="btn-ghost btn-sm" onclick="investigarPagamentos()">Investigar</button>
         <div id="debugResultadoPagamentos" style="margin-top:12px;"></div>
+      </div>
+      <div class="card">
+        <strong>Diagnóstico de cotação (marcaObservacao)</strong>
+        <p class="muted" style="margin:4px 0 10px;">Digite o número da cotação pra ver exatamente o que o GSB está retornando em cada item/fornecedor, incluindo o campo marcaObservacao bruto.</p>
+        <div style="display:flex; gap:8px;">
+          <input id="debugNumeroCotacao" placeholder="Número da cotação" inputmode="numeric" style="flex:1;">
+          <button class="btn-ghost btn-sm" onclick="investigarCotacao()">Investigar</button>
+        </div>
+        <div id="debugResultadoCotacao" style="margin-top:12px;"></div>
       </div>`;
 
     container.innerHTML = respHtml + debugHtml + `<div class="card">${usuariosHtml}</div>`;
