@@ -396,6 +396,8 @@
     </div>
     <label>Link do produto (opcional, se for comprado pela internet)</label>
     <input id="itemLink" type="url" placeholder="Cole aqui o link do site, se houver">
+    <label>Anexar arquivos (opcional — fotos, PDF, planilhas; até 5 por item, 10 MB cada)</label>
+    <input id="itemArquivos" type="file" multiple accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt">
     <button class="btn-ghost btn-sm" style="margin-top:10px; width:100%;" onclick="adicionarItem()">Adicionar item à lista</button>
 
     <div id="itensLista" style="margin-top:16px;"></div>
@@ -1427,6 +1429,9 @@ function render(){
           <a href="${it.link_produto}" target="_blank" rel="noopener" style="font-size:12px; color:var(--accent); text-decoration:none;">🔗 Ver produto no site</a>
           <button onclick="copiarLink(this)" data-link="${it.link_produto.replace(/"/g,'&quot;')}" title="Copiar link" style="background:none; border:none; color:var(--muted); cursor:pointer; font-size:13px; padding:0;">📋 Copiar</button>
         </div>` : ''}
+        ${(it.anexos && it.anexos.length) ? `<div style="display:flex; flex-wrap:wrap; gap:6px 12px; margin-top:4px;">
+          ${it.anexos.map(a => `<a href="#" onclick="abrirAnexo(${a.id}); return false;" style="font-size:12px; color:var(--accent); text-decoration:none;" title="${String(a.nome).replace(/"/g,'&quot;')}">📎 ${String(a.nome).replace(/</g,'&lt;')}</a>`).join('')}
+        </div>` : ''}
       </div>`).join('');
     const acoes = currentUser.admin && s.status === 'pendente'
       ? `<div style="display:flex; gap:8px; margin-top:10px;">
@@ -1539,6 +1544,7 @@ function openNovaSolicitacao(){
   document.getElementById('itemProdutoTexto').value = '';
   document.getElementById('itemQtd').value = '';
   document.getElementById('itemLink').value = '';
+  document.getElementById('itemArquivos').value = '';
   const dataInput = document.getElementById('novaDataNecessidade');
   dataInput.min = new Date().toISOString().slice(0,10);
   dataInput.value = '';
@@ -1556,6 +1562,11 @@ function adicionarItem(){
   const link = document.getElementById('itemLink').value.trim();
   if (!nomeProduto){ showToast('Digite o nome do produto', true); return; }
   if (!qtd || qtd <= 0){ showToast('Informe a quantidade', true); return; }
+  const arquivosInput = document.getElementById('itemArquivos');
+  const arquivos = Array.from(arquivosInput.files || []);
+  if (arquivos.length > 5){ showToast('Máximo de 5 arquivos por item', true); return; }
+  const grande = arquivos.find(f => f.size > 10 * 1024 * 1024);
+  if (grande){ showToast(`"${grande.name}" passa de 10 MB`, true); return; }
   const unidSel = document.getElementById('itemUnidade');
   itensNovos.push({
     idProduto: null,
@@ -1563,17 +1574,19 @@ function adicionarItem(){
     quantidade: qtd,
     unidade: unidSel.value || '',
     linkProduto: link || null,
+    arquivos,   // File[] — enviados ao Storage depois que a solicitação é criada (não vão no JSON)
   });
   renderItensNovos();
   document.getElementById('itemProdutoTexto').value = '';
   document.getElementById('itemQtd').value = '';
   document.getElementById('itemLink').value = '';
+  arquivosInput.value = '';
   if (Array.from(unidSel.options).some(o => o.value === 'UN')) unidSel.value = 'UN';
 }
 function renderItensNovos(){
   document.getElementById('itensLista').innerHTML = itensNovos.map((it,i)=>`
     <div class="item-added">
-      <span>${it.descricaoProduto} — ${it.quantidade}${it.unidade?(' '+it.unidade):''}${it.linkProduto?' 🔗':''}</span>
+      <span>${it.descricaoProduto} — ${it.quantidade}${it.unidade?(' '+it.unidade):''}${it.linkProduto?' 🔗':''}${(it.arquivos&&it.arquivos.length)?` 📎${it.arquivos.length}`:''}</span>
       <button onclick="removerItem(${i})">✕</button>
     </div>`).join('');
 }
@@ -1597,15 +1610,19 @@ async function enviarSolicitacao(){
     setor_nome: setorNome,
     data_necessidade: dataNecessidade,
     obs,
-    itens: itensNovos,
+    itens: itensNovos.map(({ arquivos, ...resto }) => resto),   // os arquivos sobem separado, direto pro Storage
   };
   const btn = document.getElementById('btnEnviarSolicitacao');
   const textoOriginal = btn.textContent;
   btn.disabled = true;
   btn.textContent = 'Enviando...';
   try{
-    await api('/solicitacoes', { method:'POST', body: JSON.stringify(body) });
-    showToast('Solicitação enviada!');
+    const criada = await api('/solicitacoes', { method:'POST', body: JSON.stringify(body) });
+    const falhas = await enviarAnexosDosItens(criada.itemIds || [], itensNovos, (feitos, total) => {
+      btn.textContent = `Enviando anexos (${feitos}/${total})...`;
+    });
+    if (falhas.length) showToast(`Solicitação enviada, mas ${falhas.length} arquivo(s) não subiram: ${falhas.join(', ')}`, true);
+    else showToast('Solicitação enviada!');
     closeOverlay('overlayNova');
     await carregarSolicitacoes();
     await enviarWhatsappResponsavel({ filialNome, filialSigla, setorNome, obs, dataNecessidade, itens: itensNovos });
@@ -1614,6 +1631,43 @@ async function enviarSolicitacao(){
     btn.disabled = false;
     btn.textContent = textoOriginal;
   }
+}
+
+// Sobe os arquivos de cada item direto pro Supabase Storage (URL assinada gerada pelo backend).
+// Devolve a lista de nomes que falharam (vazia se tudo deu certo).
+async function enviarAnexosDosItens(itemIds, itens, onProgresso){
+  const tarefas = [];
+  itens.forEach((it, i) => (it.arquivos || []).forEach(f => tarefas.push({ itemId: itemIds[i], arquivo: f })));
+  const falhas = [];
+  let feitos = 0;
+  for (const t of tarefas){
+    let idAnexo = null;
+    try{
+      if (!t.itemId) throw new Error('item sem id');
+      const r = await api('/anexos/upload-url', { method:'POST', body: JSON.stringify({
+        item_id: t.itemId, nome: t.arquivo.name, tipo: t.arquivo.type || null, tamanho: t.arquivo.size,
+      })});
+      idAnexo = r.id;
+      const form = new FormData();
+      form.append('cacheControl', '3600');
+      form.append('', t.arquivo);
+      const up = await fetch(r.uploadUrl, { method:'PUT', body: form });
+      if (!up.ok) throw new Error('upload ' + up.status);
+    }catch(e){
+      falhas.push(t.arquivo.name);
+      if (idAnexo) api('/anexos/' + idAnexo, { method:'DELETE' }).catch(()=>{});   // desfaz o registro órfão
+    }
+    feitos++;
+    if (onProgresso) onProgresso(feitos, tarefas.length);
+  }
+  return falhas;
+}
+
+async function abrirAnexo(id){
+  try{
+    const r = await api(`/anexos/${id}/url`);
+    window.open(r.url, '_blank', 'noopener');
+  }catch(e){ showToast(e.message, true); }
 }
 
 async function enviarWhatsappResponsavel({ filialNome, filialSigla, setorNome, obs, dataNecessidade, itens }){
@@ -1625,7 +1679,7 @@ async function enviarWhatsappResponsavel({ filialNome, filialSigla, setorNome, o
     }
     const hoje = new Date().toLocaleDateString('pt-BR');
     const dataFmt = new Date(dataNecessidade+'T00:00:00').toLocaleDateString('pt-BR');
-    const itensTxt = itens.map(it => `• ${it.descricaoProduto} — ${it.quantidade}${it.unidade?(' '+it.unidade):''}${it.linkProduto ? `\n  🔗 ${it.linkProduto}` : ''}`).join('\n');
+    const itensTxt = itens.map(it => `• ${it.descricaoProduto} — ${it.quantidade}${it.unidade?(' '+it.unidade):''}${it.linkProduto ? `\n  🔗 ${it.linkProduto}` : ''}${(it.arquivos && it.arquivos.length) ? `\n  📎 ${it.arquivos.length} anexo(s) — ver no app` : ''}`).join('\n');
     const msg = `🛒 *NOVA SOLICITAÇÃO DE COMPRA*\n\n📅 *Data da solicitação:* ${hoje}\n📆 *Necessário até:* ${dataFmt}\n🏢 *Filial:* ${filialNome}\n🏗️ *Setor:* ${setorNome}\n👤 *Solicitante:* ${currentUser.nome}\n\n📦 *Itens:*\n${itensTxt}${obs ? `\n\n📝 *Observação:*\n${obs}` : ''}\n\n_Favor lançar no sistema GSB._`;
     const whats = resp.whatsapp.replace(/\D/g,'');
     window.location.href = `https://wa.me/${whats}?text=${encodeURIComponent(msg)}`;
