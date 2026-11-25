@@ -417,9 +417,9 @@
       <button type="button" onclick="limparDestino()" aria-label="Trocar destino" title="Trocar destino">✕</button>
     </div>
     <div id="destinoBuscaBox" class="autocomplete-box">
-      <input id="novoDestinoBusca" placeholder="Nº do ativo, área ou local de estoque" autocomplete="off" oninput="buscarDestino()" onfocus="buscarDestino()">
+      <input id="novoDestinoBusca" placeholder="Nº do ativo, área, local de estoque ou texto livre" autocomplete="off" oninput="buscarDestino()" onfocus="buscarDestino()">
       <div id="destinoSugestoes" class="suggestions hidden" role="listbox"></div>
-      <div class="muted" style="margin-top:4px;">🚜 ativo (nº do imobilizado) · 🌱 área/subárea · 📦 local de estoque</div>
+      <div class="muted" style="margin-top:4px;">🚜 ativo (nº do imobilizado) · 🌱 área/subárea · 📦 local de estoque · ✏️ ou escreva livremente</div>
     </div>
 
     <label>Data que precisa dos itens</label>
@@ -1648,8 +1648,8 @@ function closeOverlayBg(e, id){ if (e.target === document.getElementById(id)) cl
 // ── DESTINO (obrigatório): ativo (imobilizado), subárea ou local de estoque do GSB ──
 const LIMITE_ARQUIVO = 50 * 1024 * 1024;
 const MAX_MIDIAS = 8;
-const ICONE_DESTINO = { imobilizado:'🚜', subarea:'🌱', local:'📦' };
-const ROTULO_DESTINO = { imobilizado:'Ativo', subarea:'Área', local:'Estoque' };
+const ICONE_DESTINO = { imobilizado:'🚜', subarea:'🌱', local:'📦', texto:'✏️' };
+const ROTULO_DESTINO = { imobilizado:'Ativo', subarea:'Área', local:'Estoque', texto:'Texto livre' };
 function esc(t){ return String(t == null ? '' : t).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 let destinoEscolhido = null, destinoSugestoes = [], _destTimer = null, _destSeq = 0;
 
@@ -1665,15 +1665,25 @@ function buscarDestino(){
       const lista = await api(`/gsb/destinos-busca?q=${encodeURIComponent(q)}&idFilial=${encodeURIComponent(idFilial)}`);
       if (minha !== _destSeq) return;   // chegou resposta antiga
       destinoSugestoes = lista;
-      box.innerHTML = lista.length
-        ? lista.map((d,i)=>`<div class="suggestion" role="option" tabindex="0" onclick="escolherDestino(${i})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();escolherDestino(${i});}"><span>${ICONE_DESTINO[d.tipo]} ${esc(d.nome)}</span><span class="tipo-destino">${ROTULO_DESTINO[d.tipo]}</span></div>`).join('')
-        : '<div class="suggestion" style="color:var(--muted-strong);">Nada encontrado. Confira o número ou o nome.</div>';
-      box.classList.remove('hidden');
+      renderSugestoesDestino(q, lista.length ? '' : 'Nada encontrado no GSB. ');
     }catch(e){
-      box.innerHTML = '<div class="suggestion" style="color:var(--cancelada);">Não consegui buscar agora. Tente de novo.</div>';
-      box.classList.remove('hidden');
+      destinoSugestoes = [];
+      renderSugestoesDestino(q, 'Não consegui buscar no GSB agora. ');
     }
   }, 250);
+}
+function renderSugestoesDestino(q, aviso){
+  const box = document.getElementById('destinoSugestoes');
+  const opcoes = destinoSugestoes.map((d,i)=>`<div class="suggestion" role="option" tabindex="0" onclick="escolherDestino(${i})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();escolherDestino(${i});}"><span>${ICONE_DESTINO[d.tipo]} ${esc(d.nome)}</span><span class="tipo-destino">${ROTULO_DESTINO[d.tipo]}</span></div>`).join('');
+  const livre = `<div class="suggestion" role="option" tabindex="0" onclick="usarDestinoTexto()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();usarDestinoTexto();}"><span>✏️ ${aviso ? '<span class="muted">' + esc(aviso) + '</span>' : ''}Usar “${esc(q)}” como texto livre</span></div>`;
+  box.innerHTML = opcoes + livre;
+  box.classList.remove('hidden');
+}
+function usarDestinoTexto(){
+  const q = document.getElementById('novoDestinoBusca').value.trim();
+  if (!q) return;
+  destinoSugestoes = [{ tipo:'texto', id:'', nome:q }];
+  escolherDestino(0);
 }
 function escolherDestino(i){
   const d = destinoSugestoes[i];
@@ -1851,7 +1861,7 @@ async function enviarSolicitacao(){
   if (!itensNovos.length){ showToast('Adicione ao menos um item', true); return; }
   const dataNecessidade = document.getElementById('novaDataNecessidade').value;
   if (!dataNecessidade){ showToast('Escolha a data que precisa dos itens', true); return; }
-  if (!destinoEscolhido){ showToast('Escolha o destino: ativo, área ou local de estoque', true); document.getElementById('novoDestinoBusca').focus(); return; }
+  if (!destinoEscolhido){ showToast('Informe o destino: escolha na lista ou escreva livremente', true); document.getElementById('novoDestinoBusca').focus(); return; }
   if (gravando){ showToast('Pare a gravação antes de enviar', true); return; }
   const filialSel = document.getElementById('novaFilial');
   const setorSel = document.getElementById('novaSetor');
