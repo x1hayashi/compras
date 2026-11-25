@@ -79,6 +79,7 @@
     display:inline-flex; align-items:center; gap:6px; padding:10px 14px; min-height:40px;
     background:#eff6ff; color:var(--accent); border-radius:20px; font-size:13px; font-weight:600; cursor:pointer; border:none;
   }
+  .sr-only{position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap;}
   input, select, textarea{
     width:100%; padding:11px 12px; border:1px solid var(--border); border-radius:8px;
     font-size:15px; font-family:inherit; background:#fff; color:var(--text);
@@ -142,6 +143,21 @@
   .close-btn:hover{background:var(--bg);}
   .admin-user{display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid var(--border);}
   .admin-user:last-child{border-bottom:none;}
+  .obrig{color:var(--cancelada);}
+  .destino-chip{display:flex; align-items:center; justify-content:space-between; gap:8px; background:#eff6ff; border:1px solid #bfdbfe; color:var(--accent-dark); border-radius:8px; padding:8px 8px 8px 12px; font-weight:600; font-size:14px;}
+  .destino-chip button{background:transparent; color:var(--muted-strong); width:36px; height:36px; padding:0; border-radius:50%; font-size:16px;}
+  .suggestion .tipo-destino{color:var(--muted-strong); font-size:12px; margin-left:8px; white-space:nowrap;}
+  .suggestion[aria-selected="true"], .suggestion:focus-visible{background:var(--bg);}
+  .midia-acoes{display:flex; gap:8px; flex-wrap:wrap;}
+  .midia-acoes button{flex:1 1 auto;}
+  .midia-item{background:var(--bg); border-radius:8px; padding:10px; margin-top:8px; font-size:14px;}
+  .midia-item .linha{display:flex; align-items:center; justify-content:space-between; gap:8px;}
+  .midia-item .linha button{background:none; color:var(--cancelada); width:36px; height:36px; padding:0; font-size:18px;}
+  .midia-item audio, .midia-item video{width:100%; margin-top:6px; max-height:200px; border-radius:6px;}
+  .midia-item img{max-width:100%; max-height:160px; margin-top:6px; border-radius:6px; display:block;}
+  .midia-item textarea{margin-top:6px; font-size:14px;}
+  .gravando{color:var(--cancelada); font-weight:600;}
+  .transcricao{font-size:13px; color:var(--muted-strong); font-style:italic; margin:0 0 6px 4px; padding-left:8px; border-left:3px solid var(--border);}
   .vinculo-gsb{margin-top:4px; max-width:420px;}
   .admin-user-actions{display:flex; gap:6px; flex-wrap:wrap; margin-top:6px;}
 
@@ -395,11 +411,31 @@
     <label>Setor</label>
     <select id="novaSetor"></select>
 
+    <label for="novoDestinoBusca">Destino <span class="obrig" aria-hidden="true">*</span><span class="sr-only"> (obrigatório)</span></label>
+    <div id="destinoEscolhido" class="destino-chip hidden">
+      <span id="destinoEscolhidoTexto"></span>
+      <button type="button" onclick="limparDestino()" aria-label="Trocar destino" title="Trocar destino">✕</button>
+    </div>
+    <div id="destinoBuscaBox" class="autocomplete-box">
+      <input id="novoDestinoBusca" placeholder="Nº do ativo, área ou local de estoque" autocomplete="off" oninput="buscarDestino()" onfocus="buscarDestino()">
+      <div id="destinoSugestoes" class="suggestions hidden" role="listbox"></div>
+      <div class="muted" style="margin-top:4px;">🚜 ativo (nº do imobilizado) · 🌱 área/subárea · 📦 local de estoque</div>
+    </div>
+
     <label>Data que precisa dos itens</label>
     <input id="novaDataNecessidade" type="date" onclick="this.showPicker && this.showPicker()" onfocus="this.showPicker && this.showPicker()" required>
 
     <label>Observação (opcional)</label>
     <textarea id="novaObs" rows="2" placeholder="Ex: compra urgente para colheita"></textarea>
+
+    <label>Áudio, foto ou vídeo (opcional)</label>
+    <div class="midia-acoes">
+      <button type="button" class="btn-ghost btn-sm" id="btnGravar" onclick="alternarGravacao()">🎙️ Gravar áudio</button>
+      <button type="button" class="btn-ghost btn-sm" onclick="document.getElementById('midiaArquivos').click()">📷 Foto / vídeo</button>
+      <input id="midiaArquivos" type="file" multiple accept="image/*,video/*,audio/*" class="hidden" onchange="adicionarMidiasEscolhidas()">
+    </div>
+    <div id="gravacaoStatus" class="muted hidden" role="status" aria-live="polite" style="margin-top:6px;"></div>
+    <div id="midiaLista"></div>
 
     <hr style="border:none; border-top:1px solid var(--border); margin:16px 0;">
 
@@ -418,7 +454,7 @@
     </div>
     <label>Link do produto (opcional, se for comprado pela internet)</label>
     <input id="itemLink" type="url" placeholder="Cole aqui o link do site, se houver">
-    <label>Anexar arquivos (opcional — fotos, PDF, planilhas; até 5 por item, 10 MB cada)</label>
+    <label>Anexar arquivos (opcional — fotos, PDF, planilhas; até 5 por item, 50 MB cada)</label>
     <input id="itemArquivos" type="file" multiple accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt">
     <button class="btn-ghost btn-sm" style="margin-top:10px; width:100%;" onclick="adicionarItem()">Adicionar item à lista</button>
 
@@ -1495,7 +1531,11 @@ function render(){
           <span class="badge ${badgeClass}">${s.status}</span>
         </div>
         <div class="muted">Solicitante: ${s.solicitante_nome}${s.data_necessidade ? ' · Necessário até ' + new Date(s.data_necessidade+'T00:00:00').toLocaleDateString('pt-BR') : ''}</div>
+        ${s.destino_nome ? `<div style="margin-top:6px; font-size:14px;"><strong>Destino:</strong> ${ICONE_DESTINO[s.destino_tipo] || '🎯'} ${esc(s.destino_nome)}</div>` : ''}
         ${s.obs ? `<div style="margin-top:6px; font-size:14px;">${s.obs}</div>` : ''}
+        ${(s.anexos && s.anexos.length) ? `<div style="margin-top:8px;">${s.anexos.map(a => `
+          <div><a href="#" onclick="abrirAnexo(${a.id}); return false;" style="font-size:13px; color:var(--accent); text-decoration:none; display:inline-block; padding:8px 0;">${(a.tipo||'').startsWith('audio/') ? '🎙️' : (a.tipo||'').startsWith('video/') ? '🎬' : (a.tipo||'').startsWith('image/') ? '🖼️' : '📎'} ${esc(a.nome)}</a></div>
+          ${a.transcricao ? `<p class="transcricao">${esc(a.transcricao)}</p>` : ''}`).join('')}</div>` : ''}
         <div style="margin-top:10px;">${itensHtml}</div>
         <div style="margin-top:10px;"><button class="btn-ghost btn-sm" onclick="gerarPdfSolicitacao(${s.id})">📄 Gerar PDF</button></div>
         ${acoes}
@@ -1542,6 +1582,7 @@ function gerarPdfSolicitacao(id){
   <div class="info">
     <div><strong>Filial:</strong> ${s.filial_nome || '—'}</div>
     <div><strong>Setor:</strong> ${s.setor_nome || '—'}</div>
+    <div><strong>Destino:</strong> ${s.destino_nome ? esc(s.destino_nome) : '—'}</div>
     <div><strong>Solicitante:</strong> ${s.solicitante_nome || '—'}</div>
     <div><strong>Data da solicitação:</strong> ${dt}</div>
     <div><strong>Necessário até:</strong> ${dataNecessidade}</div>
@@ -1591,6 +1632,8 @@ function openNovaSolicitacao(){
   document.getElementById('itemQtd').value = '';
   document.getElementById('itemLink').value = '';
   document.getElementById('itemArquivos').value = '';
+  limparDestino();
+  limparMidias();
   const dataInput = document.getElementById('novaDataNecessidade');
   dataInput.min = new Date().toISOString().slice(0,10);
   dataInput.value = '';
@@ -1599,8 +1642,174 @@ function openNovaSolicitacao(){
   if (opt) { selF.value = opt.value; onFilialChange(); }
   document.getElementById('overlayNova').classList.add('open');
 }
-function closeOverlay(id){ document.getElementById(id).classList.remove('open'); }
+function closeOverlay(id){ if (id === 'overlayNova' && typeof gravando !== 'undefined' && gravando) pararGravacao(true); document.getElementById(id).classList.remove('open'); }
 function closeOverlayBg(e, id){ if (e.target === document.getElementById(id)) closeOverlay(id); }
+
+// ── DESTINO (obrigatório): ativo (imobilizado), subárea ou local de estoque do GSB ──
+const LIMITE_ARQUIVO = 50 * 1024 * 1024;
+const MAX_MIDIAS = 8;
+const ICONE_DESTINO = { imobilizado:'🚜', subarea:'🌱', local:'📦' };
+const ROTULO_DESTINO = { imobilizado:'Ativo', subarea:'Área', local:'Estoque' };
+function esc(t){ return String(t == null ? '' : t).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+let destinoEscolhido = null, destinoSugestoes = [], _destTimer = null, _destSeq = 0;
+
+function buscarDestino(){
+  clearTimeout(_destTimer);
+  const q = document.getElementById('novoDestinoBusca').value.trim();
+  const box = document.getElementById('destinoSugestoes');
+  if (!q){ box.classList.add('hidden'); return; }
+  _destTimer = setTimeout(async () => {
+    const minha = ++_destSeq;
+    try{
+      const idFilial = document.getElementById('novaFilial').value || '';
+      const lista = await api(`/gsb/destinos-busca?q=${encodeURIComponent(q)}&idFilial=${encodeURIComponent(idFilial)}`);
+      if (minha !== _destSeq) return;   // chegou resposta antiga
+      destinoSugestoes = lista;
+      box.innerHTML = lista.length
+        ? lista.map((d,i)=>`<div class="suggestion" role="option" tabindex="0" onclick="escolherDestino(${i})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();escolherDestino(${i});}"><span>${ICONE_DESTINO[d.tipo]} ${esc(d.nome)}</span><span class="tipo-destino">${ROTULO_DESTINO[d.tipo]}</span></div>`).join('')
+        : '<div class="suggestion" style="color:var(--muted-strong);">Nada encontrado. Confira o número ou o nome.</div>';
+      box.classList.remove('hidden');
+    }catch(e){
+      box.innerHTML = '<div class="suggestion" style="color:var(--cancelada);">Não consegui buscar agora. Tente de novo.</div>';
+      box.classList.remove('hidden');
+    }
+  }, 250);
+}
+function escolherDestino(i){
+  const d = destinoSugestoes[i];
+  if (!d) return;
+  destinoEscolhido = d;
+  document.getElementById('destinoEscolhidoTexto').textContent = `${ICONE_DESTINO[d.tipo]} ${d.nome}`;
+  document.getElementById('destinoEscolhido').classList.remove('hidden');
+  document.getElementById('destinoBuscaBox').classList.add('hidden');
+  document.getElementById('destinoSugestoes').classList.add('hidden');
+}
+function limparDestino(){
+  destinoEscolhido = null;
+  const inp = document.getElementById('novoDestinoBusca');
+  if (inp) inp.value = '';
+  document.getElementById('destinoEscolhido').classList.add('hidden');
+  document.getElementById('destinoBuscaBox').classList.remove('hidden');
+  document.getElementById('destinoSugestoes').classList.add('hidden');
+}
+
+// ── ÁUDIO / FOTO / VÍDEO da solicitação ──
+let midiasNovas = [];   // { arquivo: File, url: objectURL, transcricao: '' }
+let gravador = null, gravStream = null, gravChunks = [], gravando = false, gravTimer = null, gravInicio = 0;
+let reconhecimento = null, textoReconhecido = '';
+
+function limparMidias(){
+  if (gravando) pararGravacao(true);
+  midiasNovas.forEach(m => URL.revokeObjectURL(m.url));
+  midiasNovas = [];
+  const inp = document.getElementById('midiaArquivos'); if (inp) inp.value = '';
+  renderMidias();
+}
+function tipoMidia(f){
+  const t = (f.type || '').toLowerCase();
+  if (t.startsWith('audio/')) return 'audio';
+  if (t.startsWith('video/')) return 'video';
+  if (t.startsWith('image/')) return 'imagem';
+  return 'arquivo';
+}
+function adicionarMidiasEscolhidas(){
+  const inp = document.getElementById('midiaArquivos');
+  Array.from(inp.files || []).forEach(f => adicionarMidia(f, ''));
+  inp.value = '';
+}
+function adicionarMidia(arquivo, transcricao){
+  if (midiasNovas.length >= MAX_MIDIAS){ showToast(`Máximo de ${MAX_MIDIAS} arquivos na solicitação`, true); return; }
+  if (arquivo.size > LIMITE_ARQUIVO){ showToast(`"${arquivo.name}" passa de 50 MB`, true); return; }
+  midiasNovas.push({ arquivo, url: URL.createObjectURL(arquivo), transcricao: transcricao || '' });
+  renderMidias();
+}
+function removerMidia(i){
+  const m = midiasNovas[i]; if (m) URL.revokeObjectURL(m.url);
+  midiasNovas.splice(i, 1);
+  renderMidias();
+}
+function renderMidias(){
+  const el = document.getElementById('midiaLista');
+  if (!el) return;
+  el.innerHTML = midiasNovas.map((m,i)=>{
+    const tipo = tipoMidia(m.arquivo);
+    const icone = { audio:'🎙️', video:'🎬', imagem:'🖼️', arquivo:'📎' }[tipo];
+    const mb = (m.arquivo.size / 1048576).toFixed(1).replace('.', ',');
+    const preview = tipo === 'audio' ? `<audio controls src="${m.url}"></audio>`
+      : tipo === 'video' ? `<video controls preload="metadata" src="${m.url}"></video>`
+      : tipo === 'imagem' ? `<img src="${m.url}" alt="Pré-visualização de ${esc(m.arquivo.name)}">` : '';
+    const transc = tipo === 'audio' ? `
+      <label for="transc${i}" style="margin:8px 0 2px;">Texto do áudio (você pode corrigir)</label>
+      <textarea id="transc${i}" rows="3" placeholder="${(window.SpeechRecognition||window.webkitSpeechRecognition) ? 'Se nada apareceu, digite aqui o que foi dito (opcional)' : 'Seu navegador não transcreve sozinho — digite aqui o que foi dito (opcional)'}" oninput="midiasNovas[${i}].transcricao=this.value">${esc(m.transcricao)}</textarea>` : '';
+    return `<div class="midia-item"><div class="linha"><span>${icone} ${esc(m.arquivo.name)} <span class="muted">· ${mb} MB</span></span><button type="button" onclick="removerMidia(${i})" aria-label="Remover ${esc(m.arquivo.name)}">✕</button></div>${preview}${transc}</div>`;
+  }).join('');
+}
+
+async function alternarGravacao(){
+  if (gravando){ pararGravacao(); return; }
+  if (!navigator.mediaDevices || !window.MediaRecorder){
+    showToast('Este navegador não grava áudio aqui. Use "Foto / vídeo" para anexar um arquivo de áudio.', true); return;
+  }
+  if (midiasNovas.length >= MAX_MIDIAS){ showToast(`Máximo de ${MAX_MIDIAS} arquivos na solicitação`, true); return; }
+  try{
+    gravStream = await navigator.mediaDevices.getUserMedia({ audio:true });
+  }catch(e){
+    showToast('Não consegui usar o microfone. Permita o acesso nas configurações do navegador.', true); return;
+  }
+  const mime = ['audio/webm;codecs=opus','audio/webm','audio/mp4'].find(t => MediaRecorder.isTypeSupported(t)) || '';
+  gravador = new MediaRecorder(gravStream, mime ? { mimeType: mime } : undefined);
+  gravChunks = [];
+  textoReconhecido = '';
+  gravador.ondataavailable = e => { if (e.data && e.data.size) gravChunks.push(e.data); };
+  gravador.onstop = () => {
+    gravStream.getTracks().forEach(t => t.stop());
+    const tipo = (gravador.mimeType || 'audio/webm').split(';')[0];
+    const ext = tipo.includes('mp4') ? 'm4a' : 'webm';
+    const hora = new Date().toTimeString().slice(0,5).replace(':','h');
+    const salvar = gravador._descartar ? null : new File(gravChunks, `audio-${hora}.${ext}`, { type: tipo });
+    if (salvar && salvar.size > 0) adicionarMidia(salvar, textoReconhecido.trim());
+  };
+  // Transcrição gratuita feita pelo próprio navegador, enquanto você fala (quando o navegador suporta)
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (SR){
+    try{
+      reconhecimento = new SR();
+      reconhecimento.lang = 'pt-BR';
+      reconhecimento.continuous = true;
+      reconhecimento.interimResults = false;
+      reconhecimento.onresult = ev => {
+        for (let i = ev.resultIndex; i < ev.results.length; i++){
+          if (ev.results[i].isFinal) textoReconhecido += ev.results[i][0].transcript.trim() + ' ';
+        }
+      };
+      reconhecimento.onend = () => { if (gravando){ try{ reconhecimento.start(); }catch(e){} } };
+      reconhecimento.onerror = () => {};
+      reconhecimento.start();
+    }catch(e){ reconhecimento = null; }
+  }
+  gravador.start();
+  gravando = true;
+  gravInicio = Date.now();
+  const btn = document.getElementById('btnGravar');
+  btn.textContent = '⏹️ Parar gravação';
+  const st = document.getElementById('gravacaoStatus');
+  st.classList.remove('hidden');
+  const atualizar = () => {
+    const seg = Math.floor((Date.now() - gravInicio) / 1000);
+    st.innerHTML = `<span class="gravando">● Gravando ${String(Math.floor(seg/60)).padStart(2,'0')}:${String(seg%60).padStart(2,'0')}</span> — fale perto do microfone`;
+  };
+  atualizar();
+  gravTimer = setInterval(atualizar, 500);
+}
+function pararGravacao(descartar){
+  if (!gravando) return;
+  gravando = false;
+  clearInterval(gravTimer);
+  if (reconhecimento){ try{ reconhecimento.stop(); }catch(e){} reconhecimento = null; }
+  if (gravador){ gravador._descartar = !!descartar; try{ gravador.stop(); }catch(e){} }
+  const btn = document.getElementById('btnGravar'); if (btn) btn.textContent = '🎙️ Gravar áudio';
+  const st = document.getElementById('gravacaoStatus'); if (st){ st.classList.add('hidden'); st.textContent = ''; }
+}
 
 function adicionarItem(){
   const nomeProduto = document.getElementById('itemProdutoTexto').value.trim();
@@ -1611,8 +1820,8 @@ function adicionarItem(){
   const arquivosInput = document.getElementById('itemArquivos');
   const arquivos = Array.from(arquivosInput.files || []);
   if (arquivos.length > 5){ showToast('Máximo de 5 arquivos por item', true); return; }
-  const grande = arquivos.find(f => f.size > 10 * 1024 * 1024);
-  if (grande){ showToast(`"${grande.name}" passa de 10 MB`, true); return; }
+  const grande = arquivos.find(f => f.size > LIMITE_ARQUIVO);
+  if (grande){ showToast(`"${grande.name}" passa de 50 MB`, true); return; }
   const unidSel = document.getElementById('itemUnidade');
   itensNovos.push({
     idProduto: null,
@@ -1642,6 +1851,8 @@ async function enviarSolicitacao(){
   if (!itensNovos.length){ showToast('Adicione ao menos um item', true); return; }
   const dataNecessidade = document.getElementById('novaDataNecessidade').value;
   if (!dataNecessidade){ showToast('Escolha a data que precisa dos itens', true); return; }
+  if (!destinoEscolhido){ showToast('Escolha o destino: ativo, área ou local de estoque', true); document.getElementById('novoDestinoBusca').focus(); return; }
+  if (gravando){ showToast('Pare a gravação antes de enviar', true); return; }
   const filialSel = document.getElementById('novaFilial');
   const setorSel = document.getElementById('novaSetor');
   const filialNome = filialSel.options[filialSel.selectedIndex]?.text || '';
@@ -1655,6 +1866,9 @@ async function enviarSolicitacao(){
     id_setor: setorSel.value,
     setor_nome: setorNome,
     data_necessidade: dataNecessidade,
+    destino_tipo: destinoEscolhido.tipo,
+    destino_id: destinoEscolhido.id,
+    destino_nome: destinoEscolhido.nome,
     obs,
     itens: itensNovos.map(({ arquivos, ...resto }) => resto),   // os arquivos sobem separado, direto pro Storage
   };
@@ -1667,11 +1881,18 @@ async function enviarSolicitacao(){
     const falhas = await enviarAnexosDosItens(criada.itemIds || [], itensNovos, (feitos, total) => {
       btn.textContent = `Enviando anexos (${feitos}/${total})...`;
     });
+    const midiasEnviadas = midiasNovas.slice();
+    for (let i = 0; i < midiasEnviadas.length; i++){
+      btn.textContent = `Enviando áudio/foto/vídeo (${i+1}/${midiasEnviadas.length})...`;
+      const f = await subirArquivo({ solicitacao_id: criada.id, transcricao: midiasEnviadas[i].transcricao || null }, midiasEnviadas[i].arquivo);
+      if (!f.ok) falhas.push(midiasEnviadas[i].arquivo.name);
+    }
     if (falhas.length) showToast(`Solicitação enviada, mas ${falhas.length} arquivo(s) não subiram: ${falhas.join(', ')}`, true);
     else showToast('Solicitação enviada!');
     closeOverlay('overlayNova');
     await carregarSolicitacoes();
-    await enviarWhatsappResponsavel({ filialNome, filialSigla, setorNome, obs, dataNecessidade, itens: itensNovos });
+    await enviarWhatsappResponsavel({ filialNome, filialSigla, setorNome, obs, dataNecessidade, itens: itensNovos, destino: destinoEscolhido, midias: midiasEnviadas });
+    limparMidias();
   }catch(e){ showToast(e.message, true); }
   finally{
     btn.disabled = false;
@@ -1681,28 +1902,34 @@ async function enviarSolicitacao(){
 
 // Sobe os arquivos de cada item direto pro Supabase Storage (URL assinada gerada pelo backend).
 // Devolve a lista de nomes que falharam (vazia se tudo deu certo).
+// Sobe UM arquivo: pede a URL assinada ao backend e envia direto pro Storage.
+// `ref` é { item_id } ou { solicitacao_id, transcricao }. Devolve { ok }.
+async function subirArquivo(ref, arquivo){
+  let idAnexo = null;
+  try{
+    const r = await api('/anexos/upload-url', { method:'POST', body: JSON.stringify({
+      ...ref, nome: arquivo.name, tipo: arquivo.type || null, tamanho: arquivo.size,
+    })});
+    idAnexo = r.id;
+    const form = new FormData();
+    form.append('cacheControl', '3600');
+    form.append('', arquivo);
+    const up = await fetch(r.uploadUrl, { method:'PUT', body: form });
+    if (!up.ok) throw new Error('upload ' + up.status);
+    return { ok:true };
+  }catch(e){
+    if (idAnexo) api('/anexos/' + idAnexo, { method:'DELETE' }).catch(()=>{});   // desfaz o registro órfão
+    return { ok:false };
+  }
+}
 async function enviarAnexosDosItens(itemIds, itens, onProgresso){
   const tarefas = [];
   itens.forEach((it, i) => (it.arquivos || []).forEach(f => tarefas.push({ itemId: itemIds[i], arquivo: f })));
   const falhas = [];
   let feitos = 0;
   for (const t of tarefas){
-    let idAnexo = null;
-    try{
-      if (!t.itemId) throw new Error('item sem id');
-      const r = await api('/anexos/upload-url', { method:'POST', body: JSON.stringify({
-        item_id: t.itemId, nome: t.arquivo.name, tipo: t.arquivo.type || null, tamanho: t.arquivo.size,
-      })});
-      idAnexo = r.id;
-      const form = new FormData();
-      form.append('cacheControl', '3600');
-      form.append('', t.arquivo);
-      const up = await fetch(r.uploadUrl, { method:'PUT', body: form });
-      if (!up.ok) throw new Error('upload ' + up.status);
-    }catch(e){
-      falhas.push(t.arquivo.name);
-      if (idAnexo) api('/anexos/' + idAnexo, { method:'DELETE' }).catch(()=>{});   // desfaz o registro órfão
-    }
+    const r = t.itemId ? await subirArquivo({ item_id: t.itemId }, t.arquivo) : { ok:false };
+    if (!r.ok) falhas.push(t.arquivo.name);
     feitos++;
     if (onProgresso) onProgresso(feitos, tarefas.length);
   }
@@ -1716,7 +1943,7 @@ async function abrirAnexo(id){
   }catch(e){ showToast(e.message, true); }
 }
 
-async function enviarWhatsappResponsavel({ filialNome, filialSigla, setorNome, obs, dataNecessidade, itens }){
+async function enviarWhatsappResponsavel({ filialNome, filialSigla, setorNome, obs, dataNecessidade, itens, destino, midias }){
   try{
     const resp = await api('/config/responsavel?filial=' + encodeURIComponent(filialSigla));
     if (!resp || !resp.whatsapp){
@@ -1726,7 +1953,10 @@ async function enviarWhatsappResponsavel({ filialNome, filialSigla, setorNome, o
     const hoje = new Date().toLocaleDateString('pt-BR');
     const dataFmt = new Date(dataNecessidade+'T00:00:00').toLocaleDateString('pt-BR');
     const itensTxt = itens.map(it => `• ${it.descricaoProduto} — ${it.quantidade}${it.unidade?(' '+it.unidade):''}${it.linkProduto ? `\n  🔗 ${it.linkProduto}` : ''}${(it.arquivos && it.arquivos.length) ? `\n  📎 ${it.arquivos.length} anexo(s) — ver no app` : ''}`).join('\n');
-    const msg = `🛒 *NOVA SOLICITAÇÃO DE COMPRA*\n\n📅 *Data da solicitação:* ${hoje}\n📆 *Necessário até:* ${dataFmt}\n🏢 *Filial:* ${filialNome}\n🏗️ *Setor:* ${setorNome}\n👤 *Solicitante:* ${currentUser.nome}\n\n📦 *Itens:*\n${itensTxt}${obs ? `\n\n📝 *Observação:*\n${obs}` : ''}\n\n_Favor lançar no sistema GSB._`;
+    const midiasTxt = (midias && midias.length)
+      ? '\n\n🎙️ *Áudio/foto/vídeo anexados (' + midias.length + ') — ver no app*' + midias.filter(m => m.transcricao).map(m => '\n🗣️ _"' + m.transcricao.slice(0, 400) + '"_').join('')
+      : '';
+    const msg = `🛒 *NOVA SOLICITAÇÃO DE COMPRA*\n\n📅 *Data da solicitação:* ${hoje}\n📆 *Necessário até:* ${dataFmt}\n🏢 *Filial:* ${filialNome}\n🏗️ *Setor:* ${setorNome}\n🎯 *Destino:* ${destino ? ICONE_DESTINO[destino.tipo] + ' ' + destino.nome : '—'}\n👤 *Solicitante:* ${currentUser.nome}\n\n📦 *Itens:*\n${itensTxt}${obs ? `\n\n📝 *Observação:*\n${obs}` : ''}${midiasTxt}\n\n_Favor lançar no sistema GSB._`;
     const whats = resp.whatsapp.replace(/\D/g,'');
     window.location.href = `https://wa.me/${whats}?text=${encodeURIComponent(msg)}`;
   }catch(e){ /* não bloqueia o fluxo se o whatsapp falhar */ }
