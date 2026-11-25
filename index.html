@@ -157,7 +157,6 @@
   .midia-item img{max-width:100%; max-height:160px; margin-top:6px; border-radius:6px; display:block;}
   .midia-item textarea{margin-top:6px; font-size:14px;}
   .gravando{color:var(--cancelada); font-weight:600;}
-  .transcricao{font-size:13px; color:var(--muted-strong); font-style:italic; margin:0 0 6px 4px; padding-left:8px; border-left:3px solid var(--border);}
   .vinculo-gsb{margin-top:4px; max-width:420px;}
   .admin-user-actions{display:flex; gap:6px; flex-wrap:wrap; margin-top:6px;}
 
@@ -1555,7 +1554,7 @@ function render(){
         ${s.obs ? `<div style="margin-top:6px; font-size:14px;">${s.obs}</div>` : ''}
         ${(s.anexos && s.anexos.length) ? `<div style="margin-top:8px;">${s.anexos.map(a => `
           <div><a href="#" onclick="abrirAnexo(${a.id}); return false;" style="font-size:13px; color:var(--accent); text-decoration:none; display:inline-block; padding:8px 0;">${(a.tipo||'').startsWith('audio/') ? '🎙️' : (a.tipo||'').startsWith('video/') ? '🎬' : (a.tipo||'').startsWith('image/') ? '🖼️' : '📎'} ${esc(a.nome)}</a></div>
-          ${a.transcricao ? `<p class="transcricao">${esc(a.transcricao)}</p>` : ''}`).join('')}</div>` : ''}
+          `).join('')}</div>` : ''}
         <div style="margin-top:10px;">${itensHtml}</div>
         <div style="margin-top:10px;"><button class="btn-ghost btn-sm" onclick="gerarPdfSolicitacao(${s.id})">📄 Gerar PDF</button></div>
         ${acoes}
@@ -1724,9 +1723,8 @@ function limparDestino(){
 }
 
 // ── ÁUDIO / FOTO / VÍDEO da solicitação ──
-let midiasNovas = [];   // { arquivo: File, url: objectURL, transcricao: '' }
+let midiasNovas = [];   // { arquivo: File, url: objectURL }
 let gravador = null, gravStream = null, gravChunks = [], gravando = false, gravTimer = null, gravInicio = 0;
-let reconhecimento = null, textoReconhecido = '';
 
 function limparMidias(){
   if (gravando) pararGravacao(true);
@@ -1821,10 +1819,10 @@ function acaoCamera(){
   atualizar();
   camTimer = setInterval(atualizar, 500);
 }
-function adicionarMidia(arquivo, transcricao){
+function adicionarMidia(arquivo){
   if (midiasNovas.length >= MAX_MIDIAS){ showToast(`Máximo de ${MAX_MIDIAS} arquivos na solicitação`, true); return; }
   if (arquivo.size > LIMITE_ARQUIVO){ showToast(`"${arquivo.name}" passa de 50 MB`, true); return; }
-  midiasNovas.push({ arquivo, url: URL.createObjectURL(arquivo), transcricao: transcricao || '' });
+  midiasNovas.push({ arquivo, url: URL.createObjectURL(arquivo) });
   renderMidias();
 }
 function removerMidia(i){
@@ -1842,10 +1840,7 @@ function renderMidias(){
     const preview = tipo === 'audio' ? `<audio controls src="${m.url}"></audio>`
       : tipo === 'video' ? `<video controls preload="metadata" src="${m.url}"></video>`
       : tipo === 'imagem' ? `<img src="${m.url}" alt="Pré-visualização de ${esc(m.arquivo.name)}">` : '';
-    const transc = tipo === 'audio' ? `
-      <label for="transc${i}" style="margin:8px 0 2px;">Texto do áudio (você pode corrigir)</label>
-      <textarea id="transc${i}" rows="3" placeholder="${(window.SpeechRecognition||window.webkitSpeechRecognition) ? 'Se nada apareceu, digite aqui o que foi dito (opcional)' : 'Seu navegador não transcreve sozinho — digite aqui o que foi dito (opcional)'}" oninput="midiasNovas[${i}].transcricao=this.value">${esc(m.transcricao)}</textarea>` : '';
-    return `<div class="midia-item"><div class="linha"><span>${icone} ${esc(m.arquivo.name)} <span class="muted">· ${mb} MB</span></span><button type="button" onclick="removerMidia(${i})" aria-label="Remover ${esc(m.arquivo.name)}">✕</button></div>${preview}${transc}</div>`;
+    return `<div class="midia-item"><div class="linha"><span>${icone} ${esc(m.arquivo.name)} <span class="muted">· ${mb} MB</span></span><button type="button" onclick="removerMidia(${i})" aria-label="Remover ${esc(m.arquivo.name)}">✕</button></div>${preview}</div>`;
   }).join('');
 }
 
@@ -1863,7 +1858,6 @@ async function alternarGravacao(){
   const mime = ['audio/webm;codecs=opus','audio/webm','audio/mp4'].find(t => MediaRecorder.isTypeSupported(t)) || '';
   gravador = new MediaRecorder(gravStream, mime ? { mimeType: mime } : undefined);
   gravChunks = [];
-  textoReconhecido = '';
   gravador.ondataavailable = e => { if (e.data && e.data.size) gravChunks.push(e.data); };
   gravador.onstop = () => {
     gravStream.getTracks().forEach(t => t.stop());
@@ -1871,26 +1865,8 @@ async function alternarGravacao(){
     const ext = tipo.includes('mp4') ? 'm4a' : 'webm';
     const hora = new Date().toTimeString().slice(0,5).replace(':','h');
     const salvar = gravador._descartar ? null : new File(gravChunks, `audio-${hora}.${ext}`, { type: tipo });
-    if (salvar && salvar.size > 0) adicionarMidia(salvar, textoReconhecido.trim());
+    if (salvar && salvar.size > 0) adicionarMidia(salvar, '');
   };
-  // Transcrição gratuita feita pelo próprio navegador, enquanto você fala (quando o navegador suporta)
-  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (SR){
-    try{
-      reconhecimento = new SR();
-      reconhecimento.lang = 'pt-BR';
-      reconhecimento.continuous = true;
-      reconhecimento.interimResults = false;
-      reconhecimento.onresult = ev => {
-        for (let i = ev.resultIndex; i < ev.results.length; i++){
-          if (ev.results[i].isFinal) textoReconhecido += ev.results[i][0].transcript.trim() + ' ';
-        }
-      };
-      reconhecimento.onend = () => { if (gravando){ try{ reconhecimento.start(); }catch(e){} } };
-      reconhecimento.onerror = () => {};
-      reconhecimento.start();
-    }catch(e){ reconhecimento = null; }
-  }
   gravador.start();
   gravando = true;
   gravInicio = Date.now();
@@ -1909,7 +1885,6 @@ function pararGravacao(descartar){
   if (!gravando) return;
   gravando = false;
   clearInterval(gravTimer);
-  if (reconhecimento){ try{ reconhecimento.stop(); }catch(e){} reconhecimento = null; }
   if (gravador){ gravador._descartar = !!descartar; try{ gravador.stop(); }catch(e){} }
   const btn = document.getElementById('btnGravar'); if (btn) btn.textContent = '🎙️ Gravar áudio';
   const st = document.getElementById('gravacaoStatus'); if (st){ st.classList.add('hidden'); st.textContent = ''; }
@@ -1988,7 +1963,7 @@ async function enviarSolicitacao(){
     const midiasEnviadas = midiasNovas.slice();
     for (let i = 0; i < midiasEnviadas.length; i++){
       btn.textContent = `Enviando áudio/foto/vídeo (${i+1}/${midiasEnviadas.length})...`;
-      const f = await subirArquivo({ solicitacao_id: criada.id, transcricao: midiasEnviadas[i].transcricao || null }, midiasEnviadas[i].arquivo);
+      const f = await subirArquivo({ solicitacao_id: criada.id }, midiasEnviadas[i].arquivo);
       if (!f.ok) falhas.push(midiasEnviadas[i].arquivo.name);
     }
     if (falhas.length) showToast(`Solicitação enviada, mas ${falhas.length} arquivo(s) não subiram: ${falhas.join(', ')}`, true);
@@ -2007,7 +1982,7 @@ async function enviarSolicitacao(){
 // Sobe os arquivos de cada item direto pro Supabase Storage (URL assinada gerada pelo backend).
 // Devolve a lista de nomes que falharam (vazia se tudo deu certo).
 // Sobe UM arquivo: pede a URL assinada ao backend e envia direto pro Storage.
-// `ref` é { item_id } ou { solicitacao_id, transcricao }. Devolve { ok }.
+// `ref` é { item_id } ou { solicitacao_id }. Devolve { ok }.
 async function subirArquivo(ref, arquivo){
   let idAnexo = null;
   try{
@@ -2058,7 +2033,7 @@ async function enviarWhatsappResponsavel({ filialNome, filialSigla, setorNome, o
     const dataFmt = new Date(dataNecessidade+'T00:00:00').toLocaleDateString('pt-BR');
     const itensTxt = itens.map(it => `• ${it.descricaoProduto} — ${it.quantidade}${it.unidade?(' '+it.unidade):''}${it.linkProduto ? `\n  🔗 ${it.linkProduto}` : ''}${(it.arquivos && it.arquivos.length) ? `\n  📎 ${it.arquivos.length} anexo(s) — ver no app` : ''}`).join('\n');
     const midiasTxt = (midias && midias.length)
-      ? '\n\n🎙️ *Áudio/foto/vídeo anexados (' + midias.length + ') — ver no app*' + midias.filter(m => m.transcricao).map(m => '\n🗣️ _"' + m.transcricao.slice(0, 400) + '"_').join('')
+      ? '\n\n🎙️ *Áudio/foto/vídeo anexados (' + midias.length + ') — ver no app*'
       : '';
     const msg = `🛒 *NOVA SOLICITAÇÃO DE COMPRA*\n\n📅 *Data da solicitação:* ${hoje}\n📆 *Necessário até:* ${dataFmt}\n🏢 *Filial:* ${filialNome}\n🏗️ *Setor:* ${setorNome}\n🎯 *Destino:* ${destino ? ICONE_DESTINO[destino.tipo] + ' ' + destino.nome : '—'}\n👤 *Solicitante:* ${currentUser.nome}\n\n📦 *Itens:*\n${itensTxt}${obs ? `\n\n📝 *Observação:*\n${obs}` : ''}${midiasTxt}\n\n_Favor lançar no sistema GSB._`;
     const whats = resp.whatsapp.replace(/\D/g,'');
