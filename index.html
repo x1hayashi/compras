@@ -431,8 +431,12 @@
     <label>Áudio, foto ou vídeo (opcional)</label>
     <div class="midia-acoes">
       <button type="button" class="btn-ghost btn-sm" id="btnGravar" onclick="alternarGravacao()">🎙️ Gravar áudio</button>
-      <button type="button" class="btn-ghost btn-sm" onclick="document.getElementById('midiaArquivos').click()">📷 Foto / vídeo</button>
-      <input id="midiaArquivos" type="file" multiple accept="image/*,video/*,audio/*" class="hidden" onchange="adicionarMidiasEscolhidas()">
+      <button type="button" class="btn-ghost btn-sm" onclick="capturarMidia('foto')">📷 Tirar foto</button>
+      <button type="button" class="btn-ghost btn-sm" onclick="capturarMidia('video')">🎥 Gravar vídeo</button>
+      <button type="button" class="btn-ghost btn-sm" onclick="document.getElementById('midiaArquivos').click()">📁 Da galeria / arquivos</button>
+      <input id="midiaArquivos" type="file" multiple accept="image/*,video/*,audio/*" class="hidden" onchange="adicionarMidiasEscolhidas(this)">
+      <input id="midiaFoto" type="file" accept="image/*" capture="environment" class="hidden" onchange="adicionarMidiasEscolhidas(this)">
+      <input id="midiaVideo" type="file" accept="video/*" capture="environment" class="hidden" onchange="adicionarMidiasEscolhidas(this)">
     </div>
     <div id="gravacaoStatus" class="muted hidden" role="status" aria-live="polite" style="margin-top:6px;"></div>
     <div id="midiaLista"></div>
@@ -461,6 +465,22 @@
     <div id="itensLista" style="margin-top:16px;"></div>
 
     <button class="btn-primary" id="btnEnviarSolicitacao" style="margin-top:16px;" onclick="enviarSolicitacao()">Enviar solicitação</button>
+  </div>
+</div>
+
+<!-- CÂMERA (computador): foto ou vídeo na hora -->
+<div class="overlay" id="overlayCamera">
+  <div class="sheet">
+    <div class="sheet-header">
+      <h2 id="camTitulo">Câmera</h2>
+      <button class="close-btn" aria-label="Fechar câmera" onclick="fecharCamera()">✕</button>
+    </div>
+    <video id="camPreview" autoplay playsinline muted style="width:100%; max-height:60vh; background:#000; border-radius:10px;"></video>
+    <div id="camStatus" class="muted" role="status" aria-live="polite" style="margin-top:8px;"></div>
+    <div class="midia-acoes" style="margin-top:10px;">
+      <button type="button" class="btn-primary" id="btnCamAcao" onclick="acaoCamera()">Tirar foto</button>
+      <button type="button" class="btn-ghost" onclick="fecharCamera()">Cancelar</button>
+    </div>
   </div>
 </div>
 
@@ -1642,7 +1662,7 @@ function openNovaSolicitacao(){
   if (opt) { selF.value = opt.value; onFilialChange(); }
   document.getElementById('overlayNova').classList.add('open');
 }
-function closeOverlay(id){ if (id === 'overlayNova' && typeof gravando !== 'undefined' && gravando) pararGravacao(true); document.getElementById(id).classList.remove('open'); }
+function closeOverlay(id){ if (id === 'overlayCamera') { fecharCamera(); return; } if (id === 'overlayNova' && typeof gravando !== 'undefined' && gravando) pararGravacao(true); document.getElementById(id).classList.remove('open'); }
 function closeOverlayBg(e, id){ if (e.target === document.getElementById(id)) closeOverlay(id); }
 
 // ── DESTINO (obrigatório): ativo (imobilizado), subárea ou local de estoque do GSB ──
@@ -1722,10 +1742,84 @@ function tipoMidia(f){
   if (t.startsWith('image/')) return 'imagem';
   return 'arquivo';
 }
-function adicionarMidiasEscolhidas(){
-  const inp = document.getElementById('midiaArquivos');
+function adicionarMidiasEscolhidas(inp){
   Array.from(inp.files || []).forEach(f => adicionarMidia(f, ''));
   inp.value = '';
+}
+
+// ── Capturar foto/vídeo na hora ──
+// Celular: abre a câmera do próprio aparelho (campo com capture). Computador: abre a webcam aqui no app.
+let camStream = null, camModo = null, camRec = null, camChunks = [], camTimer = null, camInicio = 0;
+function capturarMidia(modo){
+  if (midiasNovas.length >= MAX_MIDIAS){ showToast(`Máximo de ${MAX_MIDIAS} arquivos na solicitação`, true); return; }
+  const toque = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+  if (toque) document.getElementById(modo === 'foto' ? 'midiaFoto' : 'midiaVideo').click();
+  else abrirCamera(modo);
+}
+async function abrirCamera(modo){
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+    showToast('Este navegador não abre a câmera. Use "Da galeria / arquivos".', true); return;
+  }
+  try{
+    camStream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:'environment' }, audio: modo === 'video' });
+  }catch(e){
+    showToast('Não consegui usar a câmera. Permita o acesso no navegador ou use "Da galeria / arquivos".', true); return;
+  }
+  camModo = modo;
+  document.getElementById('camTitulo').textContent = modo === 'foto' ? 'Tirar foto' : 'Gravar vídeo';
+  document.getElementById('btnCamAcao').textContent = modo === 'foto' ? '📷 Tirar foto' : '⏺️ Iniciar gravação';
+  document.getElementById('camStatus').textContent = '';
+  document.getElementById('camPreview').srcObject = camStream;
+  document.getElementById('overlayCamera').classList.add('open');
+}
+function fecharCamera(){
+  clearInterval(camTimer);
+  if (camRec && camRec.state !== 'inactive'){ camRec._descartar = true; try{ camRec.stop(); }catch(e){} }
+  camRec = null;
+  if (camStream){ camStream.getTracks().forEach(t => t.stop()); camStream = null; }
+  document.getElementById('camPreview').srcObject = null;
+  document.getElementById('overlayCamera').classList.remove('open');
+}
+function acaoCamera(){
+  if (camModo === 'foto'){
+    const v = document.getElementById('camPreview');
+    if (!v.videoWidth){ showToast('A câmera ainda está abrindo, tente de novo.', true); return; }
+    const c = document.createElement('canvas');
+    c.width = v.videoWidth; c.height = v.videoHeight;
+    c.getContext('2d').drawImage(v, 0, 0);
+    c.toBlob(blob => {
+      if (blob){
+        const hora = new Date().toTimeString().slice(0,5).replace(':','h');
+        adicionarMidia(new File([blob], `foto-${hora}.jpg`, { type:'image/jpeg' }), '');
+      }
+      fecharCamera();
+    }, 'image/jpeg', 0.9);
+    return;
+  }
+  // vídeo: o mesmo botão inicia e para a gravação
+  if (camRec && camRec.state === 'recording'){ camRec.stop(); return; }
+  const mime = ['video/webm;codecs=vp9,opus','video/webm','video/mp4'].find(t => MediaRecorder.isTypeSupported(t)) || '';
+  camChunks = [];
+  camRec = new MediaRecorder(camStream, mime ? { mimeType: mime } : undefined);
+  camRec.ondataavailable = e => { if (e.data && e.data.size) camChunks.push(e.data); };
+  camRec.onstop = () => {
+    clearInterval(camTimer);
+    if (!camRec._descartar){
+      const tipo = (camRec.mimeType || 'video/webm').split(';')[0];
+      const hora = new Date().toTimeString().slice(0,5).replace(':','h');
+      const f = new File(camChunks, `video-${hora}.${tipo.includes('mp4') ? 'mp4' : 'webm'}`, { type: tipo });
+      if (f.size > 0) adicionarMidia(f, '');
+      camRec = null;
+      fecharCamera();
+    }
+  };
+  camRec.start();
+  camInicio = Date.now();
+  document.getElementById('btnCamAcao').textContent = '⏹️ Parar e usar o vídeo';
+  const st = document.getElementById('camStatus');
+  const atualizar = () => { const seg = Math.floor((Date.now() - camInicio) / 1000); st.innerHTML = `<span class="gravando">● Gravando ${String(Math.floor(seg/60)).padStart(2,'0')}:${String(seg%60).padStart(2,'0')}</span> — limite de 50 MB por arquivo`; };
+  atualizar();
+  camTimer = setInterval(atualizar, 500);
 }
 function adicionarMidia(arquivo, transcricao){
   if (midiasNovas.length >= MAX_MIDIAS){ showToast(`Máximo de ${MAX_MIDIAS} arquivos na solicitação`, true); return; }
